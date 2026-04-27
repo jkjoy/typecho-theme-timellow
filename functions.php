@@ -131,7 +131,9 @@ function themeInit($archive)
         'links' => 'page-links.php',
         'archives' => 'page-archives.php',
         'categories' => 'page-categories.php',
-        'tags' => 'page-tags.php'
+        'tags' => 'page-tags.php',
+        'moments' => 'page-moments.php',
+        'shuoshuo' => 'page-moments.php'
     ];
 
     $slug = trim((string) $archive->slug);
@@ -719,6 +721,255 @@ function timellow_fetch_friend_links($pageText = '')
     }
 
     $cache[$cacheKey] = $result;
+    return $result;
+}
+
+function timellow_moment_safe_url($url)
+{
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    if (strpos($url, '//') === 0) {
+        return $url;
+    }
+
+    $scheme = parse_url($url, PHP_URL_SCHEME);
+    if ($scheme === null || in_array(strtolower((string) $scheme), ['http', 'https'], true)) {
+        return $url;
+    }
+
+    return '';
+}
+
+function timellow_moment_media_type($type, $url)
+{
+    $type = strtoupper(trim((string) $type));
+    if ($type !== '') {
+        if (in_array($type, ['PHOTO', 'IMAGE', 'IMG', 'PICTURE'], true)) {
+            return 'PHOTO';
+        }
+
+        if (in_array($type, ['VIDEO', 'MOVIE'], true)) {
+            return 'VIDEO';
+        }
+
+        return $type;
+    }
+
+    $path = (string) parse_url((string) $url, PHP_URL_PATH);
+    $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+
+    if (in_array($extension, ['mp4', 'webm', 'ogg'], true)) {
+        return 'VIDEO';
+    }
+
+    return 'PHOTO';
+}
+
+function timellow_parse_moment_media($media)
+{
+    $media = trim((string) $media);
+    if ($media === '') {
+        return [];
+    }
+
+    $decoded = json_decode($media, true);
+    if (!is_array($decoded)) {
+        $decoded = preg_split('/\R|,/u', $media);
+    }
+
+    $items = [];
+    foreach ($decoded as $item) {
+        if (is_string($item)) {
+            $url = timellow_moment_safe_url($item);
+            if ($url !== '') {
+                $items[] = [
+                    'type' => timellow_moment_media_type('', $url),
+                    'url' => $url
+                ];
+            }
+            continue;
+        }
+
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $url = timellow_moment_safe_url($item['url'] ?? ($item['src'] ?? ''));
+        if ($url === '') {
+            continue;
+        }
+
+        $items[] = [
+            'type' => timellow_moment_media_type($item['type'] ?? '', $url),
+            'url' => $url
+        ];
+    }
+
+    return $items;
+}
+
+function timellow_parse_moment_tags($tags)
+{
+    $tags = trim((string) $tags);
+    if ($tags === '') {
+        return [];
+    }
+
+    $decoded = json_decode($tags, true);
+    $rawTags = is_array($decoded) ? $decoded : preg_split('/[,，;；|]+/u', $tags);
+    $result = [];
+
+    foreach ($rawTags as $tag) {
+        $tag = trim((string) $tag);
+        $tag = trim($tag, "# \t\n\r\0\x0B");
+        if ($tag !== '' && !in_array($tag, $result, true)) {
+            $result[] = $tag;
+        }
+    }
+
+    return $result;
+}
+
+function timellow_moment_content_html($content)
+{
+    $content = trim((string) $content);
+    if ($content === '') {
+        return '';
+    }
+
+    $escaped = htmlspecialchars($content, ENT_QUOTES, 'UTF-8');
+    $escaped = preg_replace_callback('/https?:\/\/[^\s<]+/i', function ($matches) {
+        $url = html_entity_decode((string) $matches[0], ENT_QUOTES, 'UTF-8');
+        return '<a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener nofollow">' . $matches[0] . '</a>';
+    }, $escaped);
+
+    return nl2br((string) $escaped, false);
+}
+
+function timellow_moment_source_profile($source)
+{
+    $source = trim((string) $source);
+    if ($source === '') {
+        return [
+            'label' => '',
+            'icon' => ''
+        ];
+    }
+
+    $normalized = strtolower($source);
+    $labels = [
+        'web' => _t('网页'),
+        'browser' => _t('网页'),
+        'chrome' => 'Chrome',
+        'edge' => 'Edge',
+        'firefox' => 'Firefox',
+        'safari' => 'Safari',
+        'api' => 'API',
+        'bot' => _t('机器人'),
+        'server' => _t('服务器'),
+        'cli' => 'CLI',
+        'ios' => 'iOS',
+        'iphone' => 'iPhone',
+        'ipad' => 'iPad',
+        'android' => 'Android',
+        'app' => 'App',
+        'mobile' => _t('手机'),
+        'phone' => _t('手机'),
+        'tablet' => _t('平板'),
+        'wechat' => _t('微信'),
+        'weixin' => _t('微信'),
+        'pc' => _t('电脑'),
+        'desktop' => _t('电脑'),
+        'windows' => 'Windows',
+        'mac' => 'Mac',
+        'macos' => 'macOS'
+    ];
+
+    $icon = 'monitor';
+    if (preg_match('/api|bot|server|cli|terminal/u', $normalized)) {
+        $icon = 'terminal';
+    } elseif (preg_match('/ipad|tablet/u', $normalized)) {
+        $icon = 'tablet';
+    } elseif (preg_match('/ios|iphone|android|app|mobile|phone|wechat|weixin/u', $normalized)) {
+        $icon = 'phone';
+    }
+
+    return [
+        'label' => $labels[$normalized] ?? $source,
+        'icon' => $icon
+    ];
+}
+
+function timellow_moment_source_icon($icon)
+{
+    switch ($icon) {
+        case 'phone':
+            return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.8" width="10" height="18.4" rx="2.2"></rect><path d="M10.5 18.2h3"></path></svg>';
+        case 'tablet':
+            return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="2.8" width="13" height="18.4" rx="2.4"></rect><path d="M10.5 18.2h3"></path></svg>';
+        case 'terminal':
+            return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="m8 9 3 3-3 3"></path><path d="M13 15h4"></path></svg>';
+        case 'monitor':
+        default:
+            return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8"></path><path d="M12 16v4"></path></svg>';
+    }
+}
+
+function timellow_moment_source_html($source)
+{
+    $profile = timellow_moment_source_profile($source);
+    if ($profile['label'] === '') {
+        return '';
+    }
+
+    return '<span class="moment-source-icon moment-source-icon-' . htmlspecialchars((string) $profile['icon'], ENT_QUOTES, 'UTF-8') . '">'
+        . timellow_moment_source_icon($profile['icon'])
+        . '</span><span>' . htmlspecialchars((string) $profile['label'], ENT_QUOTES, 'UTF-8') . '</span>';
+}
+
+function timellow_fetch_moments($limit = 100)
+{
+    static $cache = [];
+    $limit = max(1, min(200, (int) $limit));
+
+    if (isset($cache[$limit])) {
+        return $cache[$limit];
+    }
+
+    $result = [
+        'items' => [],
+        'error' => ''
+    ];
+
+    try {
+        $db = Typecho_Db::get();
+        $rows = $db->fetchAll(
+            $db->select('mid', 'content', 'tags', 'media', 'created', 'source', 'status', 'location_address')
+                ->from('table.moments')
+                ->where('status = ?', 'public')
+                ->order('created', Typecho_Db::SORT_DESC)
+                ->limit($limit)
+        );
+
+        foreach ($rows as $row) {
+            $result['items'][] = [
+                'mid' => (int) ($row['mid'] ?? 0),
+                'content' => trim((string) ($row['content'] ?? '')),
+                'tags' => timellow_parse_moment_tags($row['tags'] ?? ''),
+                'media' => timellow_parse_moment_media($row['media'] ?? ''),
+                'created' => (int) ($row['created'] ?? 0),
+                'source' => trim((string) ($row['source'] ?? '')),
+                'location' => trim((string) ($row['location_address'] ?? ''))
+            ];
+        }
+    } catch (Exception $exception) {
+        $result['error'] = $exception->getMessage();
+    }
+
+    $cache[$limit] = $result;
     return $result;
 }
 

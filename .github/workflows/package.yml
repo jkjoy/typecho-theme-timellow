@@ -1,0 +1,64 @@
+name: Package Theme
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  THEME_SLUG: typecho-theme-timellow
+  PACKAGE_NAME: timellow.zip
+
+jobs:
+  package:
+    name: Build theme zip
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare package directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/${THEME_SLUG}"
+          rsync -a ./ "dist/${THEME_SLUG}/" \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude "dist" \
+            --exclude "*.zip"
+          find "dist/${THEME_SLUG}" -name ".DS_Store" -delete
+
+      - name: Build zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          zip -qr "${PACKAGE_NAME}" "${THEME_SLUG}"
+          ls -lh "${PACKAGE_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: timellow
+          path: dist/${{ env.PACKAGE_NAME }}
+          if-no-files-found: error
+
+      - name: Attach zip to release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
+            || gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes "Automated theme package."
+          gh release upload "${GITHUB_REF_NAME}" "dist/${PACKAGE_NAME}" --clobber
