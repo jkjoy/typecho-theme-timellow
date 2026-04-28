@@ -392,14 +392,120 @@ function timellow_random_cover($archive)
     return $pool[$index];
 }
 
-function timellow_post_cover($archive)
+function timellow_post_cid($archive)
 {
-    if (isset($archive->fields) && !empty($archive->fields->cover)) {
-        return trim((string) $archive->fields->cover);
+    return isset($archive->cid) ? (int) $archive->cid : 0;
+}
+
+function timellow_post_field_value($cid, $name)
+{
+    static $cache = [];
+
+    $cid = (int) $cid;
+    $name = (string) $name;
+
+    if ($cid <= 0 || $name === '') {
+        return '';
     }
 
-    if (preg_match('/<img[^>]+src=[\'"]([^\'"]+)[\'"][^>]*>/i', (string) $archive->content, $matches)) {
-        return $matches[1];
+    $cacheKey = $cid . ':' . $name;
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    try {
+        $db = \Typecho\Db::get();
+        $row = $db->fetchRow($db->select()
+            ->from('table.fields')
+            ->where('cid = ?', $cid)
+            ->where('name = ?', $name)
+            ->limit(1));
+
+        if (empty($row)) {
+            $cache[$cacheKey] = '';
+            return '';
+        }
+
+        $type = isset($row['type']) ? (string) $row['type'] : 'str';
+        if ($type === 'json') {
+            $value = isset($row['str_value']) ? (string) $row['str_value'] : '';
+        } else {
+            $column = $type . '_value';
+            $value = isset($row[$column]) ? (string) $row[$column] : '';
+        }
+
+        $cache[$cacheKey] = trim($value);
+        return $cache[$cacheKey];
+    } catch (Throwable $exception) {
+        $cache[$cacheKey] = '';
+        return '';
+    }
+}
+
+function timellow_post_raw_text($cid)
+{
+    static $cache = [];
+
+    $cid = (int) $cid;
+    if ($cid <= 0) {
+        return '';
+    }
+
+    if (array_key_exists($cid, $cache)) {
+        return $cache[$cid];
+    }
+
+    try {
+        $db = \Typecho\Db::get();
+        $row = $db->fetchRow($db->select('table.contents.text')
+            ->from('table.contents')
+            ->where('table.contents.cid = ?', $cid)
+            ->limit(1));
+
+        $cache[$cid] = isset($row['text']) ? (string) $row['text'] : '';
+        return $cache[$cid];
+    } catch (Throwable $exception) {
+        $cache[$cid] = '';
+        return '';
+    }
+}
+
+function timellow_extract_first_image($text)
+{
+    $text = (string) $text;
+
+    if (preg_match('/<img[^>]+src=[\'"]([^\'"]+)[\'"][^>]*>/i', $text, $matches)) {
+        return trim((string) html_entity_decode($matches[1], ENT_QUOTES, 'UTF-8'));
+    }
+
+    if (preg_match('/!\[[^\]]*\]\((\S+?)(?:\s+[\'"][^\'"]*[\'"])?\)/u', $text, $matches)) {
+        return trim((string) $matches[1], " \t\n\r\0\x0B<>\"'");
+    }
+
+    return '';
+}
+
+function timellow_post_cover($archive)
+{
+    $cid = timellow_post_cid($archive);
+
+    if ($cid > 0) {
+        $cover = timellow_post_field_value($cid, 'cover');
+        if ($cover !== '') {
+            return $cover;
+        }
+
+        $cover = timellow_extract_first_image(timellow_post_raw_text($cid));
+        if ($cover !== '') {
+            return $cover;
+        }
+    }
+
+    if (isset($archive->text)) {
+        $cover = timellow_extract_first_image((string) $archive->text);
+        if ($cover !== '') {
+            return $cover;
+        }
     }
 
     $defaultCover = trim((string) timellow_option('defaultCover', ''));
