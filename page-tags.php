@@ -22,9 +22,7 @@ while ($tags->next()) {
 ?>
 <main class="site-main">
     <section class="page-hero">
-        <p class="page-eyebrow"><?php $this->title(); ?></p>
-        <h1 class="page-title"></h1>
-        <p class="page-description"><?php _e('以更轻的方式浏览全部话题，快速进入标签聚合页。'); ?></p>
+        <h1 class="page-title"><?php $this->title(); ?></h1>
     </section>
 
     <?php if ($pageIntro): ?>

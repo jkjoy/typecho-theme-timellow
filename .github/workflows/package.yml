@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  THEME_SLUG: typecho-theme-timellow
+  THEME_SLUG: timellow
   PACKAGE_NAME: timellow.zip
 
 jobs:
