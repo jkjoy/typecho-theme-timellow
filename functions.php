@@ -1,8 +1,50 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
+if (!defined('TIMELLOW_VERSION')) {
+    define('TIMELLOW_VERSION', '1.0.7');
+}
+
+if (!defined('TIMELLOW_UPDATE_REPO')) {
+    define('TIMELLOW_UPDATE_REPO', 'jkjoy/typecho-theme-timellow');
+}
+
+if (!defined('TIMELLOW_UPDATE_PACKAGE')) {
+    define('TIMELLOW_UPDATE_PACKAGE', 'timellow.zip');
+}
+
 function themeConfig($form)
 {
+    timellow_handle_update_request();
+    timellow_add_update_panel($form);
+
+    $updaterCaFile = new \Typecho\Widget\Helper\Form\Element\Text(
+        'updaterCaFile',
+        null,
+        '',
+        _t('更新器 CA 证书路径'),
+        _t('可选。服务器未配置 curl.cainfo / openssl.cafile 时填写 cacert.pem 的绝对路径，用于安全连接 GitHub。留空会自动尝试常见路径。')
+    );
+    $form->addInput($updaterCaFile);
+
+    $updaterPackageUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+        'updaterPackageUrl',
+        null,
+        '',
+        _t('更新包下载地址'),
+        _t('可选。填写 timellow.zip 直链后，“在线更新”会优先使用此地址，适合 GitHub 下载慢或被阻断时配置代理/CDN 地址。')
+    );
+    $form->addInput($updaterPackageUrl->addRule('url', _t('请填写合法的更新包 URL 地址')));
+
+    $updaterAllowInsecureSsl = new \Typecho\Widget\Helper\Form\Element\Checkbox(
+        'updaterAllowInsecureSsl',
+        ['1' => _t('允许在线更新在 HTTPS 证书校验失败时关闭证书校验')],
+        null,
+        _t('更新器兼容模式'),
+        _t('默认不要开启。只有在服务器无法配置 CA 证书，且你确认网络环境可信时才勾选。')
+    );
+    $form->addInput($updaterAllowInsecureSsl);
+
     $faviconUrl = new \Typecho\Widget\Helper\Form\Element\Text(
         'faviconUrl',
         null,
@@ -176,6 +218,478 @@ function timellow_sanitize_css_text($value)
     $value = preg_replace('/[<>{};]/u', '', $value);
     $value = preg_replace('/\s+/u', ' ', $value);
     return trim((string) $value);
+}
+
+function timellow_escape($value)
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function timellow_version_number($version)
+{
+    $version = trim((string) $version);
+    return ltrim($version, "vV \t\n\r\0\x0B");
+}
+
+function timellow_admin_url($path)
+{
+    $options = \Widget\Options::alloc();
+    return \Typecho\Common::url($path, $options->adminUrl);
+}
+
+function timellow_update_action_url($action)
+{
+    $security = \Widget\Security::alloc();
+    return $security->getAdminUrl('options-theme.php?timellow_update=' . rawurlencode((string) $action));
+}
+
+function timellow_update_notice($message, $type = 'notice')
+{
+    \Widget\Notice::alloc()->set($message, $type);
+}
+
+function timellow_update_ca_file()
+{
+    $configured = trim((string) timellow_option('updaterCaFile', ''));
+    $candidates = [];
+
+    if ($configured !== '') {
+        $candidates[] = $configured;
+    }
+
+    $curlCaInfo = trim((string) ini_get('curl.cainfo'));
+    if ($curlCaInfo !== '') {
+        $candidates[] = $curlCaInfo;
+    }
+
+    $opensslCaFile = trim((string) ini_get('openssl.cafile'));
+    if ($opensslCaFile !== '') {
+        $candidates[] = $opensslCaFile;
+    }
+
+    $candidates[] = __TYPECHO_ROOT_DIR__ . '/usr/plugins/TeStore/data/cacert.pem';
+    $candidates[] = dirname(__TYPECHO_ROOT_DIR__, 2) . '/childApp/tool/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem';
+    $candidates[] = '/etc/ssl/certs/ca-certificates.crt';
+    $candidates[] = '/etc/pki/tls/certs/ca-bundle.crt';
+    $candidates[] = '/usr/local/share/certs/ca-root-nss.crt';
+
+    foreach (array_unique($candidates) as $candidate) {
+        if ($candidate !== '' && is_file($candidate) && is_readable($candidate)) {
+            return $candidate;
+        }
+    }
+
+    return '';
+}
+
+function timellow_update_allow_insecure_ssl()
+{
+    return timellow_truthy(timellow_option('updaterAllowInsecureSsl', ''));
+}
+
+function timellow_http_get($url, array $headers = [], $timeout = 20, $outputFile = null)
+{
+    $url = trim((string) $url);
+    if ($url === '') {
+        throw new RuntimeException('请求地址为空。');
+    }
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        if (!$ch) {
+            throw new RuntimeException('无法初始化网络请求。');
+        }
+
+        $requestHeaders = array_merge([
+            'User-Agent: Timellow-Theme-Updater/' . TIMELLOW_VERSION,
+            'Accept: application/vnd.github+json'
+        ], $headers);
+
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeaders);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_TIMEOUT, max(10, (int) $timeout));
+        $verifySsl = !timellow_update_allow_insecure_ssl();
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $verifySsl);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $verifySsl ? 2 : 0);
+        $caFile = timellow_update_ca_file();
+        if ($verifySsl && $caFile !== '') {
+            curl_setopt($ch, CURLOPT_CAINFO, $caFile);
+        }
+
+        $handle = null;
+        if ($outputFile !== null) {
+            $handle = fopen($outputFile, 'wb');
+            if (!$handle) {
+                curl_close($ch);
+                throw new RuntimeException('无法写入下载文件。');
+            }
+            curl_setopt($ch, CURLOPT_FILE, $handle);
+        } else {
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        }
+
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($handle) {
+            fclose($handle);
+        }
+
+        if ($body === false || $status >= 400 || $status < 200) {
+            throw new RuntimeException($error !== '' ? $error : '网络请求失败，HTTP 状态码：' . $status);
+        }
+
+        return $outputFile !== null ? '' : (string) $body;
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => max(10, (int) $timeout),
+            'header' => implode("\r\n", array_merge([
+                'User-Agent: Timellow-Theme-Updater/' . TIMELLOW_VERSION,
+                'Accept: application/vnd.github+json'
+            ], $headers))
+        ]
+    ]);
+
+    $body = @file_get_contents($url, false, $context);
+    if ($body === false) {
+        throw new RuntimeException('网络请求失败。');
+    }
+
+    if ($outputFile !== null && file_put_contents($outputFile, $body) === false) {
+        throw new RuntimeException('无法写入下载文件。');
+    }
+
+    return $outputFile !== null ? '' : (string) $body;
+}
+
+function timellow_latest_release()
+{
+    $apiUrl = 'https://api.github.com/repos/' . TIMELLOW_UPDATE_REPO . '/releases/latest';
+    $body = timellow_http_get($apiUrl);
+    $release = json_decode($body, true);
+
+    if (!is_array($release) || empty($release['tag_name'])) {
+        throw new RuntimeException('无法解析 GitHub 最新版本信息。');
+    }
+
+    $downloadUrl = '';
+    if (!empty($release['assets']) && is_array($release['assets'])) {
+        foreach ($release['assets'] as $asset) {
+            if (!empty($asset['name']) && $asset['name'] === TIMELLOW_UPDATE_PACKAGE && !empty($asset['browser_download_url'])) {
+                $downloadUrl = (string) $asset['browser_download_url'];
+                break;
+            }
+        }
+    }
+
+    if ($downloadUrl === '') {
+        $downloadUrl = 'https://github.com/' . TIMELLOW_UPDATE_REPO . '/releases/latest/download/' . TIMELLOW_UPDATE_PACKAGE;
+    }
+
+    $customPackageUrl = trim((string) timellow_option('updaterPackageUrl', ''));
+    if ($customPackageUrl !== '' && filter_var($customPackageUrl, FILTER_VALIDATE_URL)) {
+        $downloadUrl = $customPackageUrl;
+    }
+
+    return [
+        'tag' => (string) $release['tag_name'],
+        'version' => timellow_version_number($release['tag_name']),
+        'url' => !empty($release['html_url']) ? (string) $release['html_url'] : 'https://github.com/' . TIMELLOW_UPDATE_REPO . '/releases',
+        'downloadUrl' => $downloadUrl
+    ];
+}
+
+function timellow_runtime_directory()
+{
+    return realpath(__DIR__) ?: __DIR__;
+}
+
+function timellow_create_backup($themeDir)
+{
+    if (!class_exists('ZipArchive')) {
+        return '';
+    }
+
+    $backupDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads/timellow-backups';
+    if (!is_dir($backupDir) && !mkdir($backupDir, 0755, true)) {
+        return '';
+    }
+
+    $backupPath = $backupDir . '/timellow-' . TIMELLOW_VERSION . '-' . date('Ymd-His') . '.zip';
+    $zip = new ZipArchive();
+    if ($zip->open($backupPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        return '';
+    }
+
+    $themeDir = rtrim(str_replace('\\', '/', $themeDir), '/');
+    $baseLength = strlen($themeDir) + 1;
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($themeDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        $path = str_replace('\\', '/', $file->getPathname());
+        $relative = substr($path, $baseLength);
+
+        if ($relative === '' || strpos($relative, '.git/') === 0 || strpos($relative, '.timellow-update-') === 0) {
+            continue;
+        }
+
+        if ($file->isDir()) {
+            $zip->addEmptyDir($relative);
+        } elseif ($file->isFile()) {
+            $zip->addFile($path, $relative);
+        }
+    }
+
+    $zip->close();
+    return is_file($backupPath) ? $backupPath : '';
+}
+
+function timellow_validate_zip($zip)
+{
+    for ($index = 0; $index < $zip->numFiles; $index++) {
+        $name = (string) $zip->getNameIndex($index);
+        $normalized = str_replace('\\', '/', $name);
+
+        if ($normalized === '' || $normalized[0] === '/' || preg_match('/^[A-Za-z]:\//', $normalized) || strpos($normalized, '../') !== false || strpos($normalized, '/..') !== false) {
+            throw new RuntimeException('更新包路径不安全，已停止解压。');
+        }
+    }
+}
+
+function timellow_find_package_root($extractDir)
+{
+    $items = array_values(array_filter(scandir($extractDir), static function ($item) {
+        return $item !== '.' && $item !== '..' && $item !== '__MACOSX';
+    }));
+
+    if (count($items) === 1 && is_dir($extractDir . DIRECTORY_SEPARATOR . $items[0])) {
+        return $extractDir . DIRECTORY_SEPARATOR . $items[0];
+    }
+
+    return $extractDir;
+}
+
+function timellow_copy_directory($source, $target)
+{
+    $source = rtrim($source, DIRECTORY_SEPARATOR);
+    $target = rtrim($target, DIRECTORY_SEPARATOR);
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        $sourcePath = $file->getPathname();
+        $relative = substr($sourcePath, strlen($source) + 1);
+        $targetPath = $target . DIRECTORY_SEPARATOR . $relative;
+
+        if (strpos(str_replace('\\', '/', $relative), '.git/') === 0 || strpos(str_replace('\\', '/', $relative), '.github/') === 0) {
+            continue;
+        }
+
+        if ($file->isDir()) {
+            if (!is_dir($targetPath) && !mkdir($targetPath, 0755, true)) {
+                throw new RuntimeException('无法创建目录：' . $relative);
+            }
+        } elseif ($file->isFile()) {
+            $targetDir = dirname($targetPath);
+            if (!is_dir($targetDir) && !mkdir($targetDir, 0755, true)) {
+                throw new RuntimeException('无法创建目录：' . $relative);
+            }
+
+            if (!copy($sourcePath, $targetPath)) {
+                throw new RuntimeException('无法写入文件：' . $relative);
+            }
+        }
+    }
+}
+
+function timellow_remove_directory($path)
+{
+    if (!is_dir($path)) {
+        return;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        if ($file->isDir()) {
+            @rmdir($file->getPathname());
+        } else {
+            @unlink($file->getPathname());
+        }
+    }
+
+    @rmdir($path);
+}
+
+function timellow_install_latest_release()
+{
+    if (!class_exists('ZipArchive')) {
+        throw new RuntimeException('服务器未启用 ZipArchive，无法在线解压更新包。');
+    }
+
+    $customPackageUrl = trim((string) timellow_option('updaterPackageUrl', ''));
+    $hasCustomPackage = $customPackageUrl !== '' && filter_var($customPackageUrl, FILTER_VALIDATE_URL);
+
+    if ($hasCustomPackage) {
+        $latest = [
+            'tag' => '自定义更新包',
+            'version' => TIMELLOW_VERSION,
+            'downloadUrl' => $customPackageUrl
+        ];
+    } else {
+        $latest = timellow_latest_release();
+    }
+
+    if (version_compare($latest['version'], TIMELLOW_VERSION, '<=')) {
+        if (!$hasCustomPackage) {
+            return '当前已是最新版本：' . TIMELLOW_VERSION . '。';
+        }
+    }
+
+    $themeDir = timellow_runtime_directory();
+    if (!is_writable($themeDir)) {
+        throw new RuntimeException('当前主题目录不可写，无法在线更新：' . $themeDir);
+    }
+
+    $tmpBase = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'timellow-update-' . uniqid('', true);
+    if (!mkdir($tmpBase, 0755, true)) {
+        throw new RuntimeException('无法创建临时更新目录。');
+    }
+
+    $zipPath = $tmpBase . DIRECTORY_SEPARATOR . TIMELLOW_UPDATE_PACKAGE;
+    $extractDir = $tmpBase . DIRECTORY_SEPARATOR . 'extract';
+
+    try {
+        timellow_download_update_package($latest['downloadUrl'], $zipPath);
+
+        if (!is_file($zipPath) || filesize($zipPath) < 1) {
+            throw new RuntimeException('更新包下载失败或文件为空。');
+        }
+
+        if (!mkdir($extractDir, 0755, true)) {
+            throw new RuntimeException('无法创建解压目录。');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath) !== true) {
+            throw new RuntimeException('无法打开更新包。');
+        }
+
+        timellow_validate_zip($zip);
+        if (!$zip->extractTo($extractDir)) {
+            $zip->close();
+            throw new RuntimeException('更新包解压失败。');
+        }
+        $zip->close();
+
+        $packageRoot = timellow_find_package_root($extractDir);
+        if (!is_file($packageRoot . DIRECTORY_SEPARATOR . 'index.php') || !is_file($packageRoot . DIRECTORY_SEPARATOR . 'functions.php')) {
+            throw new RuntimeException('更新包不是有效的 Timellow 主题。');
+        }
+
+        $backupPath = timellow_create_backup($themeDir);
+        timellow_copy_directory($packageRoot, $themeDir);
+
+        return '已更新到 ' . $latest['tag'] . ($hasCustomPackage ? '（使用自定义更新包）' : '') . ($backupPath !== '' ? '，已备份当前主题到：' . $backupPath : '。');
+    } finally {
+        timellow_remove_directory($tmpBase);
+    }
+}
+
+function timellow_download_update_package($url, $zipPath)
+{
+    $lastException = null;
+
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+        try {
+            if (is_file($zipPath)) {
+                @unlink($zipPath);
+            }
+
+            timellow_http_get($url, ['Accept: application/octet-stream'], 120, $zipPath);
+            return;
+        } catch (Throwable $exception) {
+            $lastException = $exception;
+            if ($attempt < 3) {
+                sleep(1);
+            }
+        }
+    }
+
+    throw new RuntimeException($lastException ? $lastException->getMessage() : '更新包下载失败。');
+}
+
+function timellow_handle_update_request()
+{
+    $options = \Widget\Options::alloc();
+    $request = $options->request;
+
+    if (!$request->is('timellow_update')) {
+        return;
+    }
+
+    \Widget\User::alloc()->pass('administrator');
+    \Widget\Security::alloc()->protect();
+
+    $action = trim((string) $request->get('timellow_update'));
+
+    try {
+        if ($action === 'check') {
+            $latest = timellow_latest_release();
+            if (version_compare($latest['version'], TIMELLOW_VERSION, '>')) {
+                timellow_update_notice('发现新版本 ' . $latest['tag'] . '，当前版本 ' . TIMELLOW_VERSION . '。可点击“在线更新”安装。', 'success');
+            } else {
+                timellow_update_notice('当前已是最新版本：' . TIMELLOW_VERSION . '。', 'notice');
+            }
+        } elseif ($action === 'install') {
+            timellow_update_notice(timellow_install_latest_release(), 'success');
+        } else {
+            timellow_update_notice('未知的更新操作。', 'error');
+        }
+    } catch (Throwable $exception) {
+        timellow_update_notice('在线更新失败：' . $exception->getMessage(), 'error');
+    }
+
+    $options->response->redirect(timellow_admin_url('options-theme.php'));
+    exit;
+}
+
+function timellow_add_update_panel($form)
+{
+    $checkUrl = timellow_update_action_url('check');
+    $installUrl = timellow_update_action_url('install');
+    $repoUrl = 'https://github.com/' . TIMELLOW_UPDATE_REPO . '/releases';
+    $themeDir = timellow_runtime_directory();
+    $writable = is_writable($themeDir);
+
+    $html = '<li><label class="typecho-label">在线更新</label></li>'
+        . '<li><p class="description">当前版本：<strong>' . timellow_escape(TIMELLOW_VERSION) . '</strong>。更新源：<a href="' . timellow_escape($repoUrl) . '" target="_blank" rel="noopener noreferrer">' . timellow_escape(TIMELLOW_UPDATE_REPO) . '</a>。</p>'
+        . '<p><a class="btn" href="' . timellow_escape($checkUrl) . '">检查更新</a> '
+        . '<a class="btn primary" href="' . timellow_escape($installUrl) . '" onclick="return confirm(\'将从 GitHub 下载 timellow.zip 并覆盖当前主题文件，继续吗？\');">在线更新</a></p>'
+        . (!$writable ? '<p class="description" style="color:#c00;">当前主题目录不可写，在线更新前需要给目录写入权限：' . timellow_escape($themeDir) . '</p>' : '')
+        . '<p class="description">更新前会尝试备份当前主题到 <code>usr/uploads/timellow-backups</code>。不会删除你额外添加的文件，但同名主题文件会被覆盖。GitHub 下载慢时，可在下方“更新包下载地址”填写代理后的 <code>timellow.zip</code> 直链。</p></li>';
+
+    $panel = new \Typecho\Widget\Helper\Layout('ul', [
+        'class' => 'typecho-option',
+        'id' => 'typecho-option-item-timellow-update'
+    ]);
+    $panel->html($html);
+    $form->addItem($panel);
 }
 
 function timellow_article_font_stack()
