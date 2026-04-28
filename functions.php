@@ -410,6 +410,65 @@ function timellow_post_cover($archive)
     return timellow_random_cover($archive);
 }
 
+function timellow_archive_has_duplicate_posts($archive)
+{
+    if (!$archive || !method_exists($archive, 'next') || !method_exists($archive, 'have') || !$archive->have()) {
+        return false;
+    }
+
+    $seen = [];
+    $hasDuplicate = false;
+
+    while ($archive->next()) {
+        $cid = isset($archive->cid) ? (int) $archive->cid : 0;
+
+        if ($cid <= 0) {
+            continue;
+        }
+
+        if (isset($seen[$cid])) {
+            $hasDuplicate = true;
+            continue;
+        }
+
+        $seen[$cid] = true;
+    }
+
+    return $hasDuplicate;
+}
+
+function timellow_clean_index_posts($archive)
+{
+    $pageSize = isset($archive->parameter->pageSize) ? (int) $archive->parameter->pageSize : 10;
+    $pageSize = $pageSize > 0 ? $pageSize : 10;
+    $currentPage = method_exists($archive, 'getCurrentPage') ? (int) $archive->getCurrentPage() : 1;
+    $currentPage = $currentPage > 0 ? $currentPage : 1;
+
+    $db = \Typecho\Db::get();
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $query = $db->select()
+        ->from('table.contents')
+        ->where('table.contents.status = ?', 'publish')
+        ->where('table.contents.created < ?', $options->time)
+        ->where('table.contents.type = ?', 'post')
+        ->order('table.contents.created', \Typecho\Db::SORT_DESC)
+        ->page($currentPage, $pageSize);
+
+    return \Widget\Contents\From::allocWithAlias(
+        'timellow_clean_index_' . $currentPage . '_' . $pageSize,
+        ['query' => $query]
+    );
+}
+
+function timellow_index_posts_source($archive)
+{
+    if ($archive && method_exists($archive, 'is') && $archive->is('index') && timellow_archive_has_duplicate_posts($archive)) {
+        return timellow_clean_index_posts($archive);
+    }
+
+    return $archive;
+}
+
 function timellow_archive_heading($archive)
 {
     $total = method_exists($archive, 'getTotal') ? (int) $archive->getTotal() : 0;

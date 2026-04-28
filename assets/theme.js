@@ -339,6 +339,37 @@ document.addEventListener('DOMContentLoaded', function () {
       control.hidden = true;
     }
 
+    function getPostKey(item) {
+      if (!item) {
+        return '';
+      }
+
+      var cid = item.getAttribute('data-post-cid');
+      if (cid) {
+        return 'cid:' + cid;
+      }
+
+      var link = item.querySelector('.post-title a[href], a[itemprop="url"][href], a[href]');
+      return link ? 'href:' + link.href : '';
+    }
+
+    var renderedPosts = {};
+
+    Array.prototype.forEach.call(list.children, function (child) {
+      var key = getPostKey(child);
+
+      if (!key) {
+        return;
+      }
+
+      if (renderedPosts[key] && child.parentNode) {
+        child.parentNode.removeChild(child);
+        return;
+      }
+
+      renderedPosts[key] = true;
+    });
+
     function setNextUrl(url) {
       if (!url) {
         completeLoadMore();
@@ -396,7 +427,16 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
           }
 
+          var key = getPostKey(child);
+
+          if (key && renderedPosts[key]) {
+            return;
+          }
+
           fragment.appendChild(document.importNode(child, true));
+          if (key) {
+            renderedPosts[key] = true;
+          }
           appended += 1;
         });
 

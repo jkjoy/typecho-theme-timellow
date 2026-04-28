@@ -11,12 +11,20 @@ $heading = timellow_archive_heading($this);
 
     <?php if ($this->have()): ?>
         <div class="post-list" data-post-list>
+            <?php $timellowRenderedPostIds = []; ?>
             <?php while ($this->next()): ?>
                 <?php
+                $postCid = isset($this->cid) ? (int) $this->cid : 0;
+                if ($postCid > 0) {
+                    if (isset($timellowRenderedPostIds[$postCid])) {
+                        continue;
+                    }
+                    $timellowRenderedPostIds[$postCid] = true;
+                }
                 $cover = timellow_post_cover($this);
                 $category = !empty($this->categories) ? $this->categories[0] : null;
                 ?>
-                <article class="post-card" itemscope itemtype="https://schema.org/BlogPosting">
+                <article class="post-card" data-post-cid="<?php echo $postCid; ?>" itemscope itemtype="https://schema.org/BlogPosting">
                     <a class="post-thumb-link" href="<?php $this->permalink(); ?>" aria-label="<?php $this->title(); ?>">
                         <?php if ($cover !== ''): ?>
                             <img class="post-thumb" src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php $this->title(); ?>" loading="lazy" decoding="async">
