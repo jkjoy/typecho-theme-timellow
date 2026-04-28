@@ -1,4 +1,5 @@
 <?php if (!defined('__TYPECHO_ROOT_DIR__')) exit; ?>
+<?php timellow_render_sns_links(); ?>
         <footer class="site-footer">
             <p>
                 &copy; <?php echo date('Y'); ?>

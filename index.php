@@ -4,7 +4,7 @@
  * 简单、清爽、极简的 Typecho 主题
  * @package Timellow
  * @author 时光沉淀
- * @version 1.0.8
+ * @version 1.0.9
  * @link https://www.timellow.com/
  */
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;

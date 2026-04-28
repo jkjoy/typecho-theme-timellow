@@ -1138,6 +1138,57 @@ button {
   outline-offset: 4px;
 }
 
+.sns-links {
+  margin: 28px 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.load-more + .sns-links {
+  margin-top: -8px;
+}
+
+.site-main + .sns-links {
+  margin-top: -22px;
+}
+
+.pagination + .sns-links {
+  margin-top: 10px;
+}
+
+.post-list + .sns-links {
+  margin-top: 20px;
+}
+
+.sns-link {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: none;
+}
+
+.sns-link:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 3px;
+}
+
+.sns-link svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .taxonomy-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

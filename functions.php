@@ -2,7 +2,7 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 if (!defined('TIMELLOW_VERSION')) {
-    define('TIMELLOW_VERSION', '1.0.8');
+    define('TIMELLOW_VERSION', '1.0.9');
 }
 
 if (!defined('TIMELLOW_UPDATE_REPO')) {
@@ -53,6 +53,60 @@ function themeConfig($form)
         _t('显示在页脚的附加信息，例如版权说明或一句话介绍。')
     );
     $form->addInput($footerNote);
+
+    $snsMastodonUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+        'snsMastodonUrl',
+        null,
+        '',
+        _t('Mastodon 链接'),
+        _t('留空则不显示。')
+    );
+    $form->addInput($snsMastodonUrl->addRule('url', _t('请填写合法的 Mastodon URL 地址')));
+
+    $snsTelegramUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+        'snsTelegramUrl',
+        null,
+        '',
+        _t('Telegram 链接'),
+        _t('留空则不显示。')
+    );
+    $form->addInput($snsTelegramUrl->addRule('url', _t('请填写合法的 Telegram URL 地址')));
+
+    $snsXUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+        'snsXUrl',
+        null,
+        '',
+        _t('X 链接'),
+        _t('留空则不显示。')
+    );
+    $form->addInput($snsXUrl->addRule('url', _t('请填写合法的 X URL 地址')));
+
+    $snsInstagramUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+        'snsInstagramUrl',
+        null,
+        '',
+        _t('Instagram 链接'),
+        _t('留空则不显示。')
+    );
+    $form->addInput($snsInstagramUrl->addRule('url', _t('请填写合法的 Instagram URL 地址')));
+
+    $snsEmail = new \Typecho\Widget\Helper\Form\Element\Text(
+        'snsEmail',
+        null,
+        '',
+        _t('Email 地址'),
+        _t('填写邮箱地址或 mailto: 链接。留空则不显示。')
+    );
+    $form->addInput($snsEmail);
+
+    $snsSitemapUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+        'snsSitemapUrl',
+        null,
+        '',
+        _t('网站地图链接'),
+        _t('留空时默认使用站点地址 + /sitemap.xml。')
+    );
+    $form->addInput($snsSitemapUrl->addRule('url', _t('请填写合法的网站地图 URL 地址')));
 
     $defaultCover = new \Typecho\Widget\Helper\Form\Element\Text(
         'defaultCover',
@@ -196,6 +250,143 @@ function timellow_sanitize_css_text($value)
 function timellow_escape($value)
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function timellow_site_url($path = '')
+{
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $siteUrl = isset($options->siteUrl) ? rtrim((string) $options->siteUrl, '/') : '';
+    $path = trim((string) $path);
+
+    if ($siteUrl === '') {
+        return $path;
+    }
+
+    if ($path === '') {
+        return $siteUrl . '/';
+    }
+
+    return $siteUrl . '/' . ltrim($path, '/');
+}
+
+function timellow_sns_url_option($name)
+{
+    $url = trim((string) timellow_option($name, ''));
+    return filter_var($url, FILTER_VALIDATE_URL) ? $url : '';
+}
+
+function timellow_sns_email_url()
+{
+    $email = trim((string) timellow_option('snsEmail', ''));
+
+    if ($email === '') {
+        return '';
+    }
+
+    if (preg_match('/^mailto:/i', $email)) {
+        return $email;
+    }
+
+    if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return 'mailto:' . $email;
+    }
+
+    return '';
+}
+
+function timellow_sns_icon($type)
+{
+    $icons = [
+        'mastodon' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path stroke-dasharray="82" d="M15.5 21.5c-10.5 2.5 -12.5 -2.5 -12.5 -8.5v-3c0 -6 2.5 -7 7 -7h4c4.5 0 7 1.5 7 5.5v4c0 6.5 -10 4 -13.5 4c-1 0 -1.5 7 8 5Z"><animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="82;0"/></path><path stroke-dasharray="32" stroke-dashoffset="32" d="M7 13.5l0 -5.5c0 0 0.5 -2 2.5 -2c2 0 2.5 2 2.5 2l0 2.5l0 -2.5c0 0 0.5 -2 2.5 -2c2 0 2.5 2 2.5 2l0 5.5"><animate fill="freeze" attributeName="stroke-dashoffset" begin="0.7s" dur="0.6s" to="0"/></path></g></svg>',
+        'telegram' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path stroke-dasharray="18" d="M21 5l-2.5 15M21 5l-12 8.5"><animate fill="freeze" attributeName="stroke-dashoffset" dur="0.4s" values="18;0"/></path><path stroke-dasharray="24" d="M21 5l-19 7.5"><animate fill="freeze" attributeName="stroke-dashoffset" dur="0.4s" values="24;0"/></path><path stroke-dasharray="14" stroke-dashoffset="14" d="M18.5 20l-9.5 -6.5"><animate fill="freeze" attributeName="stroke-dashoffset" begin="0.4s" dur="0.3s" to="0"/></path><path stroke-dasharray="10" stroke-dashoffset="10" d="M2 12.5l7 1"><animate fill="freeze" attributeName="stroke-dashoffset" begin="0.4s" dur="0.3s" to="0"/></path><path stroke-dasharray="8" stroke-dashoffset="8" d="M12 16l-3 3M9 13.5l0 5.5"><animate fill="freeze" attributeName="stroke-dashoffset" begin="0.7s" dur="0.3s" to="0"/></path></g></svg>',
+        'x' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g fill="currentColor"><path d="M1 2h2.5l15 20h-2.5ZM5.5 2h2.5l15 20h-2.5Z"><animate fill="freeze" attributeName="d" dur="0.4s" values="M1 2h2.5l0 0h-2.5ZM5.5 2h2.5l-0.8 0h-2.5Z;M1 2h2.5l15 20h-2.5ZM5.5 2h2.5l15 20h-2.5Z"/></path><path d="M3 2h5v0h-5ZM16 22h5v0h-5Z"><animate fill="freeze" attributeName="d" begin="0.4s" dur="0.4s" to="M3 2h5v2h-5ZM16 22h5v-2h-5Z"/></path><path d="M18.5 2h3.5l0 0h-3.5Z"><animate fill="freeze" attributeName="d" begin="0.5s" dur="0.4s" to="M18.5 2h3.5l-17 20h-3.5Z"/></path></g></svg>',
+        'instagram' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path stroke-dasharray="66" d="M16 3c2.76 0 5 2.24 5 5v8c0 2.76 -2.24 5 -5 5h-8c-2.76 0 -5 -2.24 -5 -5v-8c0 -2.76 2.24 -5 5 -5h4Z"><animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="66;0"/></path><path stroke-dasharray="28" stroke-dashoffset="28" d="M12 8c2.21 0 4 1.79 4 4c0 2.21 -1.79 4 -4 4c-2.21 0 -4 -1.79 -4 -4c0 -2.21 1.79 -4 4 -4"><animate fill="freeze" attributeName="stroke-dashoffset" begin="0.7s" dur="0.6s" to="0"/></path></g><circle cx="17" cy="7" r="1.5" fill="currentColor" opacity="0"><animate fill="freeze" attributeName="opacity" begin="1.3s" dur="0.2s" to="1"/></circle></svg>',
+        'email' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path stroke-dasharray="66" d="M4 5h16c0.55 0 1 0.45 1 1v12c0 0.55 -0.45 1 -1 1h-16c-0.55 0 -1 -0.45 -1 -1v-12c0 -0.55 0.45 -1 1 -1Z"><animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="66;0"/></path><path stroke-dasharray="24" stroke-dashoffset="24" d="M3 6.5l9 5.5l9 -5.5"><animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.3s" to="0"/></path></g></svg>',
+        'rss' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="5" cy="19" r="2" fill="currentColor"><animate fill="freeze" attributeName="r" dur="0.2s" values="0;2"/></circle><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path stroke-dasharray="18" stroke-dashoffset="18" d="M4 11c2.39 0 4.68 0.95 6.36 2.64c1.69 1.68 2.64 3.97 2.64 6.36"><animate fill="freeze" attributeName="stroke-dashoffset" begin="0.2s" dur="0.3s" to="0"/></path><path stroke-dasharray="28" stroke-dashoffset="28" d="M4 4c4.24 0 8.31 1.69 11.31 4.69c3 3 4.69 7.07 4.69 11.31"><animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.4s" to="0"/></path></g></svg>',
+        'sitemap' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="4" width="6" height="5" rx="1"></rect><rect x="4" y="16" width="5" height="4" rx="1"></rect><rect x="15" y="16" width="5" height="4" rx="1"></rect><path d="M12 9v4"></path><path d="M6.5 16v-3h11v3"></path></svg>'
+    ];
+
+    return isset($icons[$type]) ? $icons[$type] : '';
+}
+
+function timellow_sns_links()
+{
+    $links = [];
+    $configuredLinks = [
+        ['type' => 'mastodon', 'label' => 'Mastodon', 'option' => 'snsMastodonUrl', 'rel' => 'me noopener noreferrer'],
+        ['type' => 'telegram', 'label' => 'Telegram', 'option' => 'snsTelegramUrl', 'rel' => 'noopener noreferrer'],
+        ['type' => 'x', 'label' => 'X', 'option' => 'snsXUrl', 'rel' => 'noopener noreferrer'],
+        ['type' => 'instagram', 'label' => 'Instagram', 'option' => 'snsInstagramUrl', 'rel' => 'noopener noreferrer']
+    ];
+
+    foreach ($configuredLinks as $item) {
+        $url = timellow_sns_url_option($item['option']);
+        if ($url === '') {
+            continue;
+        }
+
+        $links[] = [
+            'type' => $item['type'],
+            'label' => $item['label'],
+            'url' => $url,
+            'target' => '_blank',
+            'rel' => $item['rel']
+        ];
+    }
+
+    $emailUrl = timellow_sns_email_url();
+    if ($emailUrl !== '') {
+        $links[] = [
+            'type' => 'email',
+            'label' => 'Email',
+            'url' => $emailUrl,
+            'target' => '',
+            'rel' => ''
+        ];
+    }
+
+    $links[] = [
+        'type' => 'rss',
+        'label' => 'RSS',
+        'url' => timellow_site_url('/feed'),
+        'target' => '',
+        'rel' => ''
+    ];
+
+    $sitemapUrl = timellow_sns_url_option('snsSitemapUrl');
+    if ($sitemapUrl === '') {
+        $sitemapUrl = timellow_site_url('/sitemap.xml');
+    }
+
+    $links[] = [
+        'type' => 'sitemap',
+        'label' => _t('网站地图'),
+        'url' => $sitemapUrl,
+        'target' => '',
+        'rel' => ''
+    ];
+
+    return $links;
+}
+
+function timellow_render_sns_links()
+{
+    $links = timellow_sns_links();
+
+    if (empty($links)) {
+        return;
+    }
+
+    echo '<nav class="sns-links" aria-label="' . timellow_escape(_t('社交链接')) . '">';
+    foreach ($links as $link) {
+        $target = !empty($link['target']) ? ' target="' . timellow_escape($link['target']) . '"' : '';
+        $rel = !empty($link['rel']) ? ' rel="' . timellow_escape($link['rel']) . '"' : '';
+
+        echo '<a class="sns-link sns-link-' . timellow_escape($link['type']) . '" href="' . timellow_escape($link['url']) . '"' . $target . $rel . ' aria-label="' . timellow_escape($link['label']) . '" title="' . timellow_escape($link['label']) . '">';
+        echo timellow_sns_icon($link['type']);
+        echo '</a>';
+    }
+    echo '</nav>';
 }
 
 function timellow_version_number($version)
