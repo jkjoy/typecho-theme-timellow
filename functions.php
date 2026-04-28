@@ -535,7 +535,11 @@ function timellow_post_cover($archive)
 function timellow_truthy($value)
 {
     if (is_array($value)) {
-        foreach ($value as $item) {
+        foreach ($value as $key => $item) {
+            if (!is_int($key) && timellow_truthy($key)) {
+                return true;
+            }
+
             if (timellow_truthy($item)) {
                 return true;
             }
@@ -547,6 +551,11 @@ function timellow_truthy($value)
     $value = trim((string) $value);
     if ($value === '') {
         return false;
+    }
+
+    $decodedJson = json_decode($value, true);
+    if (json_last_error() === JSON_ERROR_NONE && is_array($decodedJson)) {
+        return timellow_truthy($decodedJson);
     }
 
     $decoded = @unserialize($value);
