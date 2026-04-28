@@ -2,7 +2,7 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 if (!defined('TIMELLOW_VERSION')) {
-    define('TIMELLOW_VERSION', '1.0.7');
+    define('TIMELLOW_VERSION', '1.0.8');
 }
 
 if (!defined('TIMELLOW_UPDATE_REPO')) {
@@ -17,33 +17,6 @@ function themeConfig($form)
 {
     timellow_handle_update_request();
     timellow_add_update_panel($form);
-
-    $updaterCaFile = new \Typecho\Widget\Helper\Form\Element\Text(
-        'updaterCaFile',
-        null,
-        '',
-        _t('更新器 CA 证书路径'),
-        _t('可选。服务器未配置 curl.cainfo / openssl.cafile 时填写 cacert.pem 的绝对路径，用于安全连接 GitHub。留空会自动尝试常见路径。')
-    );
-    $form->addInput($updaterCaFile);
-
-    $updaterPackageUrl = new \Typecho\Widget\Helper\Form\Element\Text(
-        'updaterPackageUrl',
-        null,
-        '',
-        _t('更新包下载地址'),
-        _t('可选。填写 timellow.zip 直链后，“在线更新”会优先使用此地址，适合 GitHub 下载慢或被阻断时配置代理/CDN 地址。')
-    );
-    $form->addInput($updaterPackageUrl->addRule('url', _t('请填写合法的更新包 URL 地址')));
-
-    $updaterAllowInsecureSsl = new \Typecho\Widget\Helper\Form\Element\Checkbox(
-        'updaterAllowInsecureSsl',
-        ['1' => _t('允许在线更新在 HTTPS 证书校验失败时关闭证书校验')],
-        null,
-        _t('更新器兼容模式'),
-        _t('默认不要开启。只有在服务器无法配置 CA 证书，且你确认网络环境可信时才勾选。')
-    );
-    $form->addInput($updaterAllowInsecureSsl);
 
     $faviconUrl = new \Typecho\Widget\Helper\Form\Element\Text(
         'faviconUrl',
@@ -248,45 +221,6 @@ function timellow_update_notice($message, $type = 'notice')
     \Widget\Notice::alloc()->set($message, $type);
 }
 
-function timellow_update_ca_file()
-{
-    $configured = trim((string) timellow_option('updaterCaFile', ''));
-    $candidates = [];
-
-    if ($configured !== '') {
-        $candidates[] = $configured;
-    }
-
-    $curlCaInfo = trim((string) ini_get('curl.cainfo'));
-    if ($curlCaInfo !== '') {
-        $candidates[] = $curlCaInfo;
-    }
-
-    $opensslCaFile = trim((string) ini_get('openssl.cafile'));
-    if ($opensslCaFile !== '') {
-        $candidates[] = $opensslCaFile;
-    }
-
-    $candidates[] = __TYPECHO_ROOT_DIR__ . '/usr/plugins/TeStore/data/cacert.pem';
-    $candidates[] = dirname(__TYPECHO_ROOT_DIR__, 2) . '/childApp/tool/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem';
-    $candidates[] = '/etc/ssl/certs/ca-certificates.crt';
-    $candidates[] = '/etc/pki/tls/certs/ca-bundle.crt';
-    $candidates[] = '/usr/local/share/certs/ca-root-nss.crt';
-
-    foreach (array_unique($candidates) as $candidate) {
-        if ($candidate !== '' && is_file($candidate) && is_readable($candidate)) {
-            return $candidate;
-        }
-    }
-
-    return '';
-}
-
-function timellow_update_allow_insecure_ssl()
-{
-    return timellow_truthy(timellow_option('updaterAllowInsecureSsl', ''));
-}
-
 function timellow_http_get($url, array $headers = [], $timeout = 20, $outputFile = null)
 {
     $url = trim((string) $url);
@@ -309,13 +243,8 @@ function timellow_http_get($url, array $headers = [], $timeout = 20, $outputFile
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
         curl_setopt($ch, CURLOPT_TIMEOUT, max(10, (int) $timeout));
-        $verifySsl = !timellow_update_allow_insecure_ssl();
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $verifySsl);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $verifySsl ? 2 : 0);
-        $caFile = timellow_update_ca_file();
-        if ($verifySsl && $caFile !== '') {
-            curl_setopt($ch, CURLOPT_CAINFO, $caFile);
-        }
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 
         $handle = null;
         if ($outputFile !== null) {
@@ -392,11 +321,6 @@ function timellow_latest_release()
         $downloadUrl = 'https://github.com/' . TIMELLOW_UPDATE_REPO . '/releases/latest/download/' . TIMELLOW_UPDATE_PACKAGE;
     }
 
-    $customPackageUrl = trim((string) timellow_option('updaterPackageUrl', ''));
-    if ($customPackageUrl !== '' && filter_var($customPackageUrl, FILTER_VALIDATE_URL)) {
-        $downloadUrl = $customPackageUrl;
-    }
-
     return [
         'tag' => (string) $release['tag_name'],
         'version' => timellow_version_number($release['tag_name']),
@@ -416,7 +340,7 @@ function timellow_create_backup($themeDir)
         return '';
     }
 
-    $backupDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads/timellow-backups';
+    $backupDir = __TYPECHO_ROOT_DIR__ . '/usr/timellow-backups';
     if (!is_dir($backupDir) && !mkdir($backupDir, 0755, true)) {
         return '';
     }
@@ -542,23 +466,10 @@ function timellow_install_latest_release()
         throw new RuntimeException('服务器未启用 ZipArchive，无法在线解压更新包。');
     }
 
-    $customPackageUrl = trim((string) timellow_option('updaterPackageUrl', ''));
-    $hasCustomPackage = $customPackageUrl !== '' && filter_var($customPackageUrl, FILTER_VALIDATE_URL);
-
-    if ($hasCustomPackage) {
-        $latest = [
-            'tag' => '自定义更新包',
-            'version' => TIMELLOW_VERSION,
-            'downloadUrl' => $customPackageUrl
-        ];
-    } else {
-        $latest = timellow_latest_release();
-    }
+    $latest = timellow_latest_release();
 
     if (version_compare($latest['version'], TIMELLOW_VERSION, '<=')) {
-        if (!$hasCustomPackage) {
-            return '当前已是最新版本：' . TIMELLOW_VERSION . '。';
-        }
+        return '当前已是最新版本：' . TIMELLOW_VERSION . '。';
     }
 
     $themeDir = timellow_runtime_directory();
@@ -605,7 +516,7 @@ function timellow_install_latest_release()
         $backupPath = timellow_create_backup($themeDir);
         timellow_copy_directory($packageRoot, $themeDir);
 
-        return '已更新到 ' . $latest['tag'] . ($hasCustomPackage ? '（使用自定义更新包）' : '') . ($backupPath !== '' ? '，已备份当前主题到：' . $backupPath : '。');
+        return '已更新到 ' . $latest['tag'] . ($backupPath !== '' ? '，已备份当前主题到：' . $backupPath : '。');
     } finally {
         timellow_remove_directory($tmpBase);
     }
@@ -676,13 +587,14 @@ function timellow_add_update_panel($form)
     $repoUrl = 'https://github.com/' . TIMELLOW_UPDATE_REPO . '/releases';
     $themeDir = timellow_runtime_directory();
     $writable = is_writable($themeDir);
+    $buttonStyle = 'display:inline-flex;align-items:center;justify-content:center;height:32px;line-height:1;padding:0 14px;vertical-align:middle;box-sizing:border-box;';
 
     $html = '<li><label class="typecho-label">在线更新</label></li>'
         . '<li><p class="description">当前版本：<strong>' . timellow_escape(TIMELLOW_VERSION) . '</strong>。更新源：<a href="' . timellow_escape($repoUrl) . '" target="_blank" rel="noopener noreferrer">' . timellow_escape(TIMELLOW_UPDATE_REPO) . '</a>。</p>'
-        . '<p><a class="btn" href="' . timellow_escape($checkUrl) . '">检查更新</a> '
-        . '<a class="btn primary" href="' . timellow_escape($installUrl) . '" onclick="return confirm(\'将从 GitHub 下载 timellow.zip 并覆盖当前主题文件，继续吗？\');">在线更新</a></p>'
+        . '<p style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;"><a class="btn" style="' . $buttonStyle . '" href="' . timellow_escape($checkUrl) . '">检查更新</a>'
+        . '<a class="btn primary" style="' . $buttonStyle . '" href="' . timellow_escape($installUrl) . '" onclick="return confirm(\'将从 GitHub 下载 timellow.zip 并覆盖当前主题文件，继续吗？\');">在线更新</a></p>'
         . (!$writable ? '<p class="description" style="color:#c00;">当前主题目录不可写，在线更新前需要给目录写入权限：' . timellow_escape($themeDir) . '</p>' : '')
-        . '<p class="description">更新前会尝试备份当前主题到 <code>usr/uploads/timellow-backups</code>。不会删除你额外添加的文件，但同名主题文件会被覆盖。GitHub 下载慢时，可在下方“更新包下载地址”填写代理后的 <code>timellow.zip</code> 直链。</p></li>';
+        . '</li>';
 
     $panel = new \Typecho\Widget\Helper\Layout('ul', [
         'class' => 'typecho-option',
