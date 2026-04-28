@@ -3,7 +3,7 @@
  *
  * @package Timellow
  * @author Codex
- * @version 1.0.4
+ * @version 1.0.5
  * @link https://typecho.org/
  */
 
@@ -513,6 +513,16 @@ button {
   font-weight: 600;
   color: var(--text);
   line-height: 1.4;
+}
+
+.post-sticky-badge {
+  display: inline-block;
+  margin-right: 8px;
+  color: #ed4a4a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  vertical-align: 0.08em;
 }
 
 .post-list .post-title a {

@@ -119,6 +119,15 @@ function themeFields($layout)
         _t('列表页和独立页面说明文案，留空则自动截取正文。')
     );
     $layout->addItem($summary);
+
+    $sticky = new \Typecho\Widget\Helper\Form\Element\Checkbox(
+        'sticky',
+        ['true' => _t('置顶文章')],
+        null,
+        _t('置顶文章'),
+        _t('勾选后，这篇文章会显示在首页文章列表最前面，并从后续普通文章列表中排除，避免重复出现。')
+    );
+    $layout->addItem($sticky);
 }
 
 function themeInit($archive)
@@ -397,6 +406,21 @@ function timellow_post_cid($archive)
     return isset($archive->cid) ? (int) $archive->cid : 0;
 }
 
+function timellow_field_row_value($row)
+{
+    if (empty($row) || !is_array($row)) {
+        return '';
+    }
+
+    $type = isset($row['type']) ? (string) $row['type'] : 'str';
+    if ($type === 'json') {
+        return isset($row['str_value']) ? (string) $row['str_value'] : '';
+    }
+
+    $column = $type . '_value';
+    return isset($row[$column]) ? (string) $row[$column] : '';
+}
+
 function timellow_post_field_value($cid, $name)
 {
     static $cache = [];
@@ -426,15 +450,7 @@ function timellow_post_field_value($cid, $name)
             return '';
         }
 
-        $type = isset($row['type']) ? (string) $row['type'] : 'str';
-        if ($type === 'json') {
-            $value = isset($row['str_value']) ? (string) $row['str_value'] : '';
-        } else {
-            $column = $type . '_value';
-            $value = isset($row[$column]) ? (string) $row[$column] : '';
-        }
-
-        $cache[$cacheKey] = trim($value);
+        $cache[$cacheKey] = trim(timellow_field_row_value($row));
         return $cache[$cacheKey];
     } catch (Throwable $exception) {
         $cache[$cacheKey] = '';
@@ -516,6 +532,86 @@ function timellow_post_cover($archive)
     return timellow_random_cover($archive);
 }
 
+function timellow_truthy($value)
+{
+    if (is_array($value)) {
+        foreach ($value as $item) {
+            if (timellow_truthy($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    $value = trim((string) $value);
+    if ($value === '') {
+        return false;
+    }
+
+    $decoded = @unserialize($value);
+    if ($decoded !== false || $value === 'b:0;') {
+        return timellow_truthy($decoded);
+    }
+
+    $value = strtolower($value);
+    if (in_array($value, ['0', 'false', 'off', 'no', 'normal', 'none'], true)) {
+        return false;
+    }
+
+    return in_array($value, ['1', 'true', 'on', 'yes', 'sticky'], true);
+}
+
+function timellow_is_sticky_post($archive)
+{
+    $cid = timellow_post_cid($archive);
+    return $cid > 0 && timellow_truthy(timellow_post_field_value($cid, 'sticky'));
+}
+
+function timellow_sticky_post_cids()
+{
+    static $cache = null;
+
+    if ($cache !== null) {
+        return $cache;
+    }
+
+    $cache = [];
+
+    try {
+        $db = \Typecho\Db::get();
+        $options = \Typecho\Widget::widget('Widget_Options');
+        $rows = $db->fetchAll($db->select(
+            'table.contents.cid',
+            'table.fields.type',
+            'table.fields.str_value',
+            'table.fields.int_value',
+            'table.fields.float_value'
+        )
+            ->from('table.contents')
+            ->join('table.fields', 'table.fields.cid = table.contents.cid', \Typecho\Db::INNER_JOIN)
+            ->where('table.contents.status = ?', 'publish')
+            ->where('table.contents.created < ?', $options->time)
+            ->where('table.contents.type = ?', 'post')
+            ->where('table.fields.name = ?', 'sticky')
+            ->order('table.contents.created', \Typecho\Db::SORT_DESC));
+
+        foreach ($rows as $row) {
+            $cid = isset($row['cid']) ? (int) $row['cid'] : 0;
+
+            if ($cid > 0 && timellow_truthy(timellow_field_row_value($row))) {
+                $cache[$cid] = $cid;
+            }
+        }
+
+        $cache = array_values($cache);
+    } catch (Throwable $exception) {
+        $cache = [];
+    }
+
+    return $cache;
+}
+
 function timellow_archive_has_duplicate_posts($archive)
 {
     if (!$archive || !method_exists($archive, 'next') || !method_exists($archive, 'have') || !$archive->have()) {
@@ -543,33 +639,101 @@ function timellow_archive_has_duplicate_posts($archive)
     return $hasDuplicate;
 }
 
-function timellow_clean_index_posts($archive)
+function timellow_post_cids_query($limit, $offset, array $excludeCids = [])
+{
+    $limit = max(0, (int) $limit);
+    $offset = max(0, (int) $offset);
+
+    if ($limit < 1) {
+        return [];
+    }
+
+    try {
+        $db = \Typecho\Db::get();
+        $options = \Typecho\Widget::widget('Widget_Options');
+        $excludeMap = !empty($excludeCids) ? array_fill_keys(array_map('intval', $excludeCids), true) : [];
+        $query = $db->select('table.contents.cid')
+            ->from('table.contents')
+            ->where('table.contents.status = ?', 'publish')
+            ->where('table.contents.created < ?', $options->time)
+            ->where('table.contents.type = ?', 'post')
+            ->order('table.contents.created', \Typecho\Db::SORT_DESC);
+
+        $rows = $db->fetchAll($query);
+        $cids = [];
+
+        foreach ($rows as $row) {
+            $cid = isset($row['cid']) ? (int) $row['cid'] : 0;
+
+            if ($cid > 0 && !isset($excludeMap[$cid])) {
+                $cids[] = $cid;
+            }
+        }
+
+        return array_slice($cids, $offset, $limit);
+    } catch (Throwable $exception) {
+        return [];
+    }
+}
+
+function timellow_posts_by_cids(array $cids, $alias)
+{
+    $cids = array_values(array_unique(array_filter(array_map('intval', $cids))));
+
+    if (empty($cids)) {
+        return \Widget\Contents\From::allocWithAlias($alias . '_empty', ['cid' => -1]);
+    }
+
+    $db = \Typecho\Db::get();
+    $query = $db->select('table.contents.*')
+        ->from('table.contents')
+        ->where('table.contents.cid IN ?', $cids);
+    $rows = $db->fetchAll($query);
+    $rowsByCid = [];
+
+    foreach ($rows as $row) {
+        if (isset($row['cid'])) {
+            $rowsByCid[(int) $row['cid']] = $row;
+        }
+    }
+
+    $widget = \Widget\Contents\From::allocWithAlias($alias . '_empty_' . md5(implode(',', $cids)), ['cid' => -1]);
+
+    foreach ($cids as $cid) {
+        if (isset($rowsByCid[$cid])) {
+            $widget->push($rowsByCid[$cid]);
+        }
+    }
+
+    return $widget;
+}
+
+function timellow_sticky_index_posts($archive)
 {
     $pageSize = isset($archive->parameter->pageSize) ? (int) $archive->parameter->pageSize : 10;
     $pageSize = $pageSize > 0 ? $pageSize : 10;
     $currentPage = method_exists($archive, 'getCurrentPage') ? (int) $archive->getCurrentPage() : 1;
     $currentPage = $currentPage > 0 ? $currentPage : 1;
+    $start = ($currentPage - 1) * $pageSize;
+    $stickyCids = timellow_sticky_post_cids();
+    $stickyCount = count($stickyCids);
+    $pageStickyCids = array_slice($stickyCids, $start, $pageSize);
+    $normalLimit = $pageSize - count($pageStickyCids);
+    $normalOffset = max(0, $start - $stickyCount);
+    $normalCids = timellow_post_cids_query($normalLimit, $normalOffset, $stickyCids);
+    $cids = array_merge($pageStickyCids, $normalCids);
 
-    $db = \Typecho\Db::get();
-    $options = \Typecho\Widget::widget('Widget_Options');
-    $query = $db->select()
-        ->from('table.contents')
-        ->where('table.contents.status = ?', 'publish')
-        ->where('table.contents.created < ?', $options->time)
-        ->where('table.contents.type = ?', 'post')
-        ->order('table.contents.created', \Typecho\Db::SORT_DESC)
-        ->page($currentPage, $pageSize);
-
-    return \Widget\Contents\From::allocWithAlias(
-        'timellow_clean_index_' . $currentPage . '_' . $pageSize,
-        ['query' => $query]
-    );
+    return timellow_posts_by_cids($cids, 'timellow_sticky_index_' . $currentPage . '_' . $pageSize);
 }
 
 function timellow_index_posts_source($archive)
 {
-    if ($archive && method_exists($archive, 'is') && $archive->is('index') && timellow_archive_has_duplicate_posts($archive)) {
-        return timellow_clean_index_posts($archive);
+    if (!$archive || !method_exists($archive, 'is') || !$archive->is('index')) {
+        return $archive;
+    }
+
+    if (!empty(timellow_sticky_post_cids()) || timellow_archive_has_duplicate_posts($archive)) {
+        return timellow_sticky_index_posts($archive);
     }
 
     return $archive;

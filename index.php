@@ -4,7 +4,7 @@
  * 简单、清爽、极简的 Typecho 主题
  * @package Timellow
  * @author 时光沉淀
- * @version 1.0.4
+ * @version 1.0.5
  * @link https://www.timellow.com/
  */
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
@@ -26,8 +26,9 @@ $timellowPosts = timellow_index_posts_source($this);
                 }
                 $cover = timellow_post_cover($timellowPosts);
                 $category = !empty($timellowPosts->categories) ? $timellowPosts->categories[0] : null;
+                $isSticky = timellow_is_sticky_post($timellowPosts);
                 ?>
-                <article class="post-card" data-post-cid="<?php echo $postCid; ?>" itemscope itemtype="https://schema.org/BlogPosting">
+                <article class="post-card<?php if ($isSticky): ?> is-sticky<?php endif; ?>" data-post-cid="<?php echo $postCid; ?>" itemscope itemtype="https://schema.org/BlogPosting">
                     <a class="post-thumb-link" href="<?php $timellowPosts->permalink(); ?>" aria-label="<?php $timellowPosts->title(); ?>">
                         <?php if ($cover !== ''): ?>
                             <img class="post-thumb" src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php $timellowPosts->title(); ?>" loading="lazy" decoding="async">
@@ -37,6 +38,7 @@ $timellowPosts = timellow_index_posts_source($this);
                     </a>
                     <div class="post-body">
                         <h2 class="post-title" itemprop="headline">
+                            <?php if ($isSticky): ?><span class="post-sticky-badge"><?php _e('置顶'); ?></span><?php endif; ?>
                             <a href="<?php $timellowPosts->permalink(); ?>" itemprop="url"><?php $timellowPosts->title(); ?></a>
                         </h2>
                         <div class="post-meta">

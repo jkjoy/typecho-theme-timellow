@@ -23,8 +23,9 @@ $heading = timellow_archive_heading($this);
                 }
                 $cover = timellow_post_cover($this);
                 $category = !empty($this->categories) ? $this->categories[0] : null;
+                $isSticky = timellow_is_sticky_post($this);
                 ?>
-                <article class="post-card" data-post-cid="<?php echo $postCid; ?>" itemscope itemtype="https://schema.org/BlogPosting">
+                <article class="post-card<?php if ($isSticky): ?> is-sticky<?php endif; ?>" data-post-cid="<?php echo $postCid; ?>" itemscope itemtype="https://schema.org/BlogPosting">
                     <a class="post-thumb-link" href="<?php $this->permalink(); ?>" aria-label="<?php $this->title(); ?>">
                         <?php if ($cover !== ''): ?>
                             <img class="post-thumb" src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php $this->title(); ?>" loading="lazy" decoding="async">
@@ -34,6 +35,7 @@ $heading = timellow_archive_heading($this);
                     </a>
                     <div class="post-body">
                         <h2 class="post-title">
+                            <?php if ($isSticky): ?><span class="post-sticky-badge"><?php _e('置顶'); ?></span><?php endif; ?>
                             <a href="<?php $this->permalink(); ?>"><?php $this->title(); ?></a>
                         </h2>
                         <div class="post-meta">
