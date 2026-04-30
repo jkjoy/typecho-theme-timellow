@@ -507,12 +507,17 @@ button {
 }
 
 .post-sticky-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-right: 8px;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 0;
   color: #ed4a4a;
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
   vertical-align: 0.08em;
 }
 
@@ -985,8 +990,8 @@ button {
 
 .article-footer .tag-chip {
   gap: 4px;
-  padding: 4px 7px;
-  border-radius: 0;
+  padding: 2px 6px;
+  border-radius: 3px;
   background: #83dadf;
   color: #000000;
   transition: none;
@@ -1370,7 +1375,21 @@ button {
 }
 
 .moment-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   text-align: left;
+}
+
+.moment-location-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .moment-source-icon {
@@ -1842,20 +1861,29 @@ button {
   }
 
   .header-inner {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px 16px;
   }
 
   .header-actions {
-    width: 100%;
-    justify-content: space-between;
+    display: contents;
   }
 
   .header-tools {
+    order: 2;
     margin-left: auto;
   }
 
+  .brand {
+    order: 1;
+    flex: 1;
+  }
+
   .site-nav {
+    order: 3;
+    width: 100%;
     justify-content: flex-start;
     gap: 16px;
   }

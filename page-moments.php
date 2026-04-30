@@ -59,8 +59,9 @@ $moments = $momentsResult['items'];
                                             <video src="<?php echo htmlspecialchars((string) $media['url'], ENT_QUOTES, 'UTF-8'); ?>" controls preload="metadata"></video>
                                         </div>
                                     <?php elseif ($media['type'] === 'PHOTO'): ?>
-                                        <a class="moment-media-item" href="<?php echo htmlspecialchars((string) $media['url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener">
-                                            <img src="<?php echo htmlspecialchars((string) $media['url'], ENT_QUOTES, 'UTF-8'); ?>" alt="" loading="lazy" decoding="async">
+                                        <?php $mediaUrl = htmlspecialchars((string) $media['url'], ENT_QUOTES, 'UTF-8'); ?>
+                                        <a class="moment-media-item" href="<?php echo $mediaUrl; ?>" target="_blank" rel="noopener">
+                                            <img src="<?php echo $mediaUrl; ?>" alt="" loading="lazy" decoding="async">
                                         </a>
                                     <?php else: ?>
                                         <a class="moment-file-link" href="<?php echo htmlspecialchars((string) $media['url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener nofollow"><?php _e('查看附件'); ?></a>
@@ -77,7 +78,13 @@ $moments = $momentsResult['items'];
                                             <time class="moment-published" datetime="<?php echo htmlspecialchars($datetime, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($publishedText, ENT_QUOTES, 'UTF-8'); ?></time>
                                         <?php endif; ?>
                                         <?php if ($moment['location'] !== ''): ?>
-                                            <span class="moment-location"><?php echo htmlspecialchars((string) $moment['location'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="moment-location">
+                                                <svg class="moment-location-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                                    <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"></path>
+                                                    <circle cx="12" cy="10" r="3"></circle>
+                                                </svg>
+                                                <span class="moment-location-text"><?php echo htmlspecialchars((string) $moment['location'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            </span>
                                         <?php endif; ?>
                                     </span>
                                 <?php endif; ?>
