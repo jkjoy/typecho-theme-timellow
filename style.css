@@ -53,6 +53,8 @@
   --comment-submit-hover: #00a5bb;
   --tag-square-bg: #323634;
   --tag-square-text: #f4f6f4;
+  --article-tag-border: #83dadf;
+  --article-tag-hash: #2fa36b;
   --theme-icon-dark: #111111;
   --theme-icon-light: #ffffff;
   --radius-lg: 18px;
@@ -107,6 +109,8 @@ html[data-theme="dark"] {
   --comment-submit-hover: #31d0e4;
   --tag-square-bg: #2a302d;
   --tag-square-text: #eff4f1;
+  --article-tag-border: #83dadf;
+  --article-tag-hash: #7fd39f;
   --theme-icon-dark: #ffffff;
   --theme-icon-light: #111111;
 }
@@ -991,16 +995,22 @@ button {
 .article-footer .tag-chip {
   gap: 4px;
   padding: 2px 6px;
+  border: 1px solid var(--article-tag-border);
   border-radius: 3px;
-  background: #83dadf;
-  color: #000000;
-  transition: none;
+  background: transparent;
+  color: var(--text);
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .article-footer .tag-chip:hover {
-  background: #89c1f2;
-  color: var(--tag-square-text);
+  border-color: var(--accent);
+  background: transparent;
+  color: var(--text);
   transform: none;
+}
+
+.article-footer .tag-hash {
+  color: var(--article-tag-hash);
 }
 
 .article-nav {
@@ -1964,7 +1974,7 @@ button {
   }
 
   .comment-row {
-    flex-direction: column;
+    align-items: flex-start;
   }
 
   .comment-avatar {

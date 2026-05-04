@@ -27,7 +27,7 @@
                 <div class="tag-list">
                     <?php foreach ($this->tags as $tag): ?>
                         <a class="tag-chip" href="<?php echo htmlspecialchars((string) $tag['permalink'], ENT_QUOTES, 'UTF-8'); ?>">
-                            <span>#</span>
+                            <span class="tag-hash">#</span>
                             <span><?php echo htmlspecialchars((string) $tag['name'], ENT_QUOTES, 'UTF-8'); ?></span>
                         </a>
                     <?php endforeach; ?>

@@ -2,7 +2,7 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 if (!defined('TIMELLOW_VERSION')) {
-    define('TIMELLOW_VERSION', '1.1.0');
+    define('TIMELLOW_VERSION', '1.1.1');
 }
 
 if (!defined('TIMELLOW_UPDATE_REPO')) {
