@@ -30,7 +30,7 @@
             document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
-    <link rel="stylesheet" href="<?php $this->options->themeUrl('style.css'); ?>">
+    <link rel="stylesheet" href="<?php $this->options->themeUrl('style.css?v=' . rawurlencode(TIMELLOW_VERSION)); ?>">
     <style>
 <?php echo timellow_article_font_style_block(); ?>
     </style>

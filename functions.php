@@ -1,8 +1,35 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
+function timellow_version_number($version)
+{
+    $version = trim((string) $version);
+    return ltrim($version, "vV \t\n\r\0\x0B");
+}
+
+function timellow_theme_index_version()
+{
+    static $version = null;
+
+    if ($version !== null) {
+        return $version;
+    }
+
+    $version = '';
+    $indexFile = __DIR__ . DIRECTORY_SEPARATOR . 'index.php';
+
+    if (is_file($indexFile)) {
+        $contents = @file_get_contents($indexFile);
+        if (is_string($contents) && preg_match('/^[ \t*]*@version[ \t]+([^\s*]+)/mi', $contents, $matches)) {
+            $version = timellow_version_number($matches[1]);
+        }
+    }
+
+    return $version !== '' ? $version : '0.0.0';
+}
+
 if (!defined('TIMELLOW_VERSION')) {
-    define('TIMELLOW_VERSION', '1.1.1');
+    define('TIMELLOW_VERSION', timellow_theme_index_version());
 }
 
 if (!defined('TIMELLOW_UPDATE_REPO')) {
@@ -387,12 +414,6 @@ function timellow_render_sns_links()
         echo '</a>';
     }
     echo '</nav>';
-}
-
-function timellow_version_number($version)
-{
-    $version = trim((string) $version);
-    return ltrim($version, "vV \t\n\r\0\x0B");
 }
 
 function timellow_admin_url($path)

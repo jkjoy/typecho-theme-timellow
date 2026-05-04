@@ -465,6 +465,45 @@ document.addEventListener('DOMContentLoaded', function () {
 
   enhanceLoadMore();
 
+  function setupBackToTop() {
+    var button = document.querySelector('[data-back-to-top]');
+
+    if (!button) {
+      return;
+    }
+
+    var isReturning = false;
+
+    function syncVisibility() {
+      var offset = window.pageYOffset || document.documentElement.scrollTop || 0;
+
+      if (isReturning) {
+        if (offset <= 4) {
+          isReturning = false;
+        } else {
+          button.hidden = true;
+          return;
+        }
+      }
+
+      button.hidden = offset < 120;
+    }
+
+    button.addEventListener('click', function () {
+      isReturning = true;
+      button.hidden = true;
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    });
+
+    syncVisibility();
+    window.addEventListener('scroll', syncVisibility, { passive: true });
+  }
+
+  setupBackToTop();
+
   if (!toggle || !panel) {
     return;
   }

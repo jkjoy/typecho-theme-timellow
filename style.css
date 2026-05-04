@@ -1864,6 +1864,52 @@ button {
   margin: 0 8px;
 }
 
+.floating-actions {
+  position: fixed;
+  right: 24px;
+  bottom: 32px;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.floating-action {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-floating);
+  color: var(--text-muted);
+  box-shadow: 0 10px 28px rgba(13, 17, 20, 0.08);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+}
+
+.floating-action:hover,
+.floating-action:focus-visible {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--surface);
+}
+
+.floating-action:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 3px;
+}
+
+.floating-action svg {
+  width: 18px;
+  height: 18px;
+}
+
+.floating-action[hidden] {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .site-header {
     padding-top: 34px;
@@ -1985,5 +2031,16 @@ button {
 
   .search-form {
     flex-direction: column;
+  }
+
+  .floating-actions {
+    right: 16px;
+    bottom: 20px;
+    gap: 8px;
+  }
+
+  .floating-action {
+    width: 38px;
+    height: 38px;
   }
 }
