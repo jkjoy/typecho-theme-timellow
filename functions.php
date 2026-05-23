@@ -168,12 +168,13 @@ function themeConfig($form)
     $articleFontMode = new \Typecho\Widget\Helper\Form\Element\Select(
         'articleFontMode',
         [
+            'default' => _t('默认字体'),
             'lxgw' => _t('霞鹜文楷（内置）'),
             'custom' => _t('自定义字体')
         ],
-        'lxgw',
+        'default',
         _t('全站字体'),
-        _t('默认使用主题内置的霞鹜文楷。切换到自定义后，可继续填写字体名称和字体文件 URL，前台全局生效。')
+        _t('选择“默认字体”时不加载或指定主题字体；选择“霞鹜文楷”后使用主题内置字体。切换到自定义后，可继续填写字体名称和字体文件 URL，前台全局生效。')
     );
     $form->addInput($articleFontMode);
 
@@ -932,7 +933,7 @@ function timellow_add_update_panel($form)
         $statusHtml = '<p class="description" style="margin-top:8px;">远程版本：<strong>' . timellow_escape($remoteTag !== '' ? $remoteTag : $remoteVersion) . '</strong>，最近检查：' . timellow_escape(date('Y-m-d H:i:s', $checkedAt)) . '</p>'
             . '<p class="description" style="margin-top:6px;color:' . $resultColor . ';">' . $resultText . '</p>';
     } else {
-        $statusHtml = '<p class="description" style="margin-top:8px;">点击“检查更新”后，如果检测到新版本，会显示“在线升级”按钮。</p>';
+        $statusHtml = '';
     }
 
     $upgradeButton = $hasUpdate
@@ -958,7 +959,7 @@ function timellow_add_update_panel($form)
 function timellow_article_font_stack()
 {
     $fallback = '"PingFang SC", "Microsoft YaHei", sans-serif';
-    $mode = trim((string) timellow_option('articleFontMode', 'lxgw'));
+    $mode = timellow_article_font_mode();
 
     if ($mode === 'custom') {
         $customName = timellow_sanitize_css_text((string) timellow_option('customArticleFontName', ''));
@@ -973,12 +974,40 @@ function timellow_article_font_stack()
         }
     }
 
-    return '"Timellow LXGW", "LXGW WenKai", ' . $fallback;
+    if ($mode === 'lxgw') {
+        return '"Timellow LXGW", "LXGW WenKai", ' . $fallback;
+    }
+
+    return '';
+}
+
+function timellow_article_font_mode()
+{
+    $mode = trim((string) timellow_option('articleFontMode', 'default'));
+    return in_array($mode, ['default', 'lxgw', 'custom'], true) ? $mode : 'default';
+}
+
+function timellow_lxgw_article_font_face()
+{
+    $baseUrl = rtrim((string) \Typecho\Widget::widget('Widget_Options')->themeUrl, '/');
+    if ($baseUrl === '') {
+        return '';
+    }
+
+    $fontUrl = $baseUrl . '/assets/fonts/lxgw.woff2';
+
+    return '@font-face {' . "\n"
+        . '  font-family: "Timellow LXGW";' . "\n"
+        . '  src: url("' . addcslashes($fontUrl, "\"\\") . '") format("woff2");' . "\n"
+        . '  font-style: normal;' . "\n"
+        . '  font-weight: 400;' . "\n"
+        . '  font-display: swap;' . "\n"
+        . '}';
 }
 
 function timellow_custom_article_font_face()
 {
-    $mode = trim((string) timellow_option('articleFontMode', 'lxgw'));
+    $mode = timellow_article_font_mode();
     if ($mode !== 'custom') {
         return '';
     }
@@ -1015,16 +1044,21 @@ function timellow_custom_article_font_face()
 function timellow_article_font_style_block()
 {
     $rules = [];
-    $fontFace = timellow_custom_article_font_face();
+    $mode = timellow_article_font_mode();
+    $fontFace = $mode === 'lxgw' ? timellow_lxgw_article_font_face() : timellow_custom_article_font_face();
 
     if ($fontFace !== '') {
         $rules[] = $fontFace;
     }
 
-    $rules[] = ':root {' . "\n"
-        . '  --site-font-family: ' . timellow_article_font_stack() . ';' . "\n"
-        . '  --article-font-family: ' . timellow_article_font_stack() . ';' . "\n"
-        . '}';
+    $fontStack = timellow_article_font_stack();
+    if ($fontStack !== '') {
+        $rules[] = ':root {' . "\n"
+            . '  --site-font-family: ' . $fontStack . ';' . "\n"
+            . '  --article-font-family: ' . $fontStack . ';' . "\n"
+            . '}';
+    }
+
     return implode("\n\n", $rules);
 }
 

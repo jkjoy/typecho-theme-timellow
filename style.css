@@ -1,14 +1,5 @@
-@font-face {
-  font-family: "Timellow LXGW";
-  src: url("assets/fonts/lxgw.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-
 :root {
   color-scheme: light;
-  --site-font-family: "Timellow LXGW", "LXGW WenKai", "PingFang SC", "Microsoft YaHei", sans-serif;
   --bg: #ffffff;
   --bg-soft: #faf8f4;
   --surface: #ffffff;
@@ -130,7 +121,10 @@ body {
     linear-gradient(180deg, var(--page-top) 0, var(--page-bottom) 100%);
   background-color: var(--bg);
   color: var(--text);
-  font: 400 16px/1.75 var(--site-font-family);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.75;
+  font-family: var(--site-font-family, inherit);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -261,7 +255,7 @@ button {
 .header-tools {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0px;
   flex-shrink: 0;
 }
 
@@ -299,9 +293,16 @@ button {
 .theme-toggle {
   border: 0;
   background: transparent;
-  padding: 4px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   cursor: pointer;
   color: var(--text-muted);
+  line-height: 1;
   transition: none;
 }
 
@@ -322,6 +323,7 @@ button {
 
 .search-toggle svg,
 .theme-toggle svg {
+  display: block;
   width: 16px;
   height: 16px;
 }
@@ -355,7 +357,7 @@ button {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border-strong);
-  border-radius: 0;
+  border-radius: 4px;
   background: var(--surface);
   padding: 9px 12px;
   color: var(--text);
@@ -389,7 +391,7 @@ button {
 }
 
 .search-form button {
-  border-radius: 0;
+  border-radius: 4px;
   padding: 9px 12px;
   font-size: 13px;
   line-height: 1.2;
