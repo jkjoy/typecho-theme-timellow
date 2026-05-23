@@ -433,6 +433,90 @@ function timellow_update_notice($message, $type = 'notice')
     \Widget\Notice::alloc()->set($message, $type);
 }
 
+function timellow_update_state_key()
+{
+    return 'theme:' . basename(__DIR__) . ':timellow-update';
+}
+
+function timellow_db_get_option_value($name)
+{
+    try {
+        $db = \Typecho\Db::get();
+        $row = $db->fetchRow(
+            $db->select()->from('table.options')->where('name = ?', $name)->limit(1)
+        );
+        if (is_array($row) && array_key_exists('value', $row)) {
+            return $row['value'];
+        }
+    } catch (Throwable $exception) {
+    }
+
+    return null;
+}
+
+function timellow_db_set_option_value($name, $value)
+{
+    try {
+        $db = \Typecho\Db::get();
+        $exists = $db->fetchRow(
+            $db->select()->from('table.options')->where('name = ?', $name)->limit(1)
+        );
+        if ($exists) {
+            $db->query(
+                $db->update('table.options')->rows(['value' => $value])->where('name = ?', $name)
+            );
+        } else {
+            $db->query(
+                $db->insert('table.options')->rows(['name' => $name, 'value' => $value, 'user' => 0])
+            );
+        }
+    } catch (Throwable $exception) {
+    }
+}
+
+function timellow_json_encode($data)
+{
+    $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+    if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+        $flags |= JSON_INVALID_UTF8_SUBSTITUTE;
+    }
+
+    $encoded = json_encode($data, $flags);
+    return is_string($encoded) ? $encoded : '';
+}
+
+function timellow_read_update_state()
+{
+    $raw = timellow_db_get_option_value(timellow_update_state_key());
+    if (!is_string($raw) || $raw === '') {
+        return [];
+    }
+
+    $data = json_decode($raw, true);
+    return is_array($data) ? $data : [];
+}
+
+function timellow_save_update_state(array $state)
+{
+    $encoded = timellow_json_encode($state);
+    if ($encoded !== '') {
+        timellow_db_set_option_value(timellow_update_state_key(), $encoded);
+    }
+}
+
+function timellow_clear_update_state()
+{
+    timellow_db_set_option_value(timellow_update_state_key(), '');
+}
+
+function timellow_update_state_has_upgrade(array $state)
+{
+    $remoteVersion = timellow_version_number((string) ($state['remote_version'] ?? ''));
+    return !empty($state['has_update'])
+        && $remoteVersion !== ''
+        && version_compare($remoteVersion, TIMELLOW_VERSION, '>');
+}
+
 function timellow_http_get($url, array $headers = [], $timeout = 20, $outputFile = null)
 {
     $url = trim((string) $url);
@@ -686,7 +770,7 @@ function timellow_install_latest_release()
 
     $themeDir = timellow_runtime_directory();
     if (!is_writable($themeDir)) {
-        throw new RuntimeException('当前主题目录不可写，无法在线更新：' . $themeDir);
+        throw new RuntimeException('当前主题目录不可写，无法在线升级：' . $themeDir);
     }
 
     $tmpBase = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'timellow-update-' . uniqid('', true);
@@ -774,18 +858,50 @@ function timellow_handle_update_request()
     try {
         if ($action === 'check') {
             $latest = timellow_latest_release();
-            if (version_compare($latest['version'], TIMELLOW_VERSION, '>')) {
-                timellow_update_notice('发现新版本 ' . $latest['tag'] . '，当前版本 ' . TIMELLOW_VERSION . '。可点击“在线更新”安装。', 'success');
+            $hasUpdate = version_compare($latest['version'], TIMELLOW_VERSION, '>');
+            timellow_save_update_state([
+                'current_version' => TIMELLOW_VERSION,
+                'remote_version' => (string) $latest['version'],
+                'remote_tag' => (string) $latest['tag'],
+                'release_url' => (string) $latest['url'],
+                'download_url' => (string) $latest['downloadUrl'],
+                'has_update' => $hasUpdate,
+                'error' => '',
+                'checked_at' => time()
+            ]);
+
+            if ($hasUpdate) {
+                timellow_update_notice('发现新版本 ' . $latest['tag'] . '，当前版本 ' . TIMELLOW_VERSION . '。已显示“在线升级”按钮。', 'success');
             } else {
                 timellow_update_notice('当前已是最新版本：' . TIMELLOW_VERSION . '。', 'notice');
             }
         } elseif ($action === 'install') {
+            $state = timellow_read_update_state();
+            if (!timellow_update_state_has_upgrade($state)) {
+                timellow_update_notice('请先检查更新，检测到新版本后才可以在线升级。', 'error');
+                $options->response->redirect(timellow_admin_url('options-theme.php'));
+                exit;
+            }
             timellow_update_notice(timellow_install_latest_release(), 'success');
+            timellow_clear_update_state();
         } else {
             timellow_update_notice('未知的更新操作。', 'error');
         }
     } catch (Throwable $exception) {
-        timellow_update_notice('在线更新失败：' . $exception->getMessage(), 'error');
+        if ($action === 'check') {
+            timellow_save_update_state([
+                'current_version' => TIMELLOW_VERSION,
+                'remote_version' => '',
+                'remote_tag' => '',
+                'release_url' => '',
+                'download_url' => '',
+                'has_update' => false,
+                'error' => $exception->getMessage(),
+                'checked_at' => time()
+            ]);
+        }
+        $prefix = $action === 'check' ? '检查更新失败：' : '在线升级失败：';
+        timellow_update_notice($prefix . $exception->getMessage(), 'error');
     }
 
     $options->response->redirect(timellow_admin_url('options-theme.php'));
@@ -800,12 +916,35 @@ function timellow_add_update_panel($form)
     $themeDir = timellow_runtime_directory();
     $writable = is_writable($themeDir);
     $buttonStyle = 'display:inline-flex;align-items:center;justify-content:center;height:32px;line-height:1;padding:0 14px;vertical-align:middle;box-sizing:border-box;';
+    $updateState = timellow_read_update_state();
+    $hasUpdate = timellow_update_state_has_upgrade($updateState);
+    $remoteVersion = trim((string) ($updateState['remote_version'] ?? ''));
+    $remoteTag = trim((string) ($updateState['remote_tag'] ?? $remoteVersion));
+    $checkedAt = (int) ($updateState['checked_at'] ?? 0);
+    $checkError = trim((string) ($updateState['error'] ?? ''));
+    $statusHtml = '';
 
-    $html = '<li><label class="typecho-label">在线更新</label></li>'
+    if ($checkError !== '') {
+        $statusHtml = '<p class="description" style="margin-top:8px;color:#c00;">上次检查失败：' . timellow_escape($checkError) . '</p>';
+    } elseif ($checkedAt > 0 && $remoteVersion !== '') {
+        $resultText = $hasUpdate ? '检测结果：发现新版本，可在线升级。' : '检测结果：当前已是最新版本。';
+        $resultColor = $hasUpdate ? '#1a7f37' : '#64748b';
+        $statusHtml = '<p class="description" style="margin-top:8px;">远程版本：<strong>' . timellow_escape($remoteTag !== '' ? $remoteTag : $remoteVersion) . '</strong>，最近检查：' . timellow_escape(date('Y-m-d H:i:s', $checkedAt)) . '</p>'
+            . '<p class="description" style="margin-top:6px;color:' . $resultColor . ';">' . $resultText . '</p>';
+    } else {
+        $statusHtml = '<p class="description" style="margin-top:8px;">点击“检查更新”后，如果检测到新版本，会显示“在线升级”按钮。</p>';
+    }
+
+    $upgradeButton = $hasUpdate
+        ? '<a class="btn primary" style="' . $buttonStyle . '" href="' . timellow_escape($installUrl) . '" onclick="return confirm(\'将从 GitHub 下载 timellow.zip 并覆盖当前主题文件，继续吗？\');">在线升级</a>'
+        : '';
+
+    $html = '<li><label class="typecho-label">在线升级</label></li>'
         . '<li><p class="description">当前版本：<strong>' . timellow_escape(TIMELLOW_VERSION) . '</strong>。更新源：<a href="' . timellow_escape($repoUrl) . '" target="_blank" rel="noopener noreferrer">' . timellow_escape(TIMELLOW_UPDATE_REPO) . '</a>。</p>'
+        . $statusHtml
         . '<p style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;"><a class="btn" style="' . $buttonStyle . '" href="' . timellow_escape($checkUrl) . '">检查更新</a>'
-        . '<a class="btn primary" style="' . $buttonStyle . '" href="' . timellow_escape($installUrl) . '" onclick="return confirm(\'将从 GitHub 下载 timellow.zip 并覆盖当前主题文件，继续吗？\');">在线更新</a></p>'
-        . (!$writable ? '<p class="description" style="color:#c00;">当前主题目录不可写，在线更新前需要给目录写入权限：' . timellow_escape($themeDir) . '</p>' : '')
+        . $upgradeButton . '</p>'
+        . (!$writable ? '<p class="description" style="color:#c00;">当前主题目录不可写，在线升级前需要给目录写入权限：' . timellow_escape($themeDir) . '</p>' : '')
         . '</li>';
 
     $panel = new \Typecho\Widget\Helper\Layout('ul', [
