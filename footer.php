@@ -1,4 +1,5 @@
 <?php if (!defined('__TYPECHO_ROOT_DIR__')) exit; ?>
+        </div>
 <?php timellow_render_sns_links(); ?>
 <?php
 $timellowCanEditCurrent = $this->user->hasLogin() && ($this->is('post') || $this->is('page')) && isset($this->cid);

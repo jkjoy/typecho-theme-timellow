@@ -39,7 +39,8 @@
         <?php echo trim((string) timellow_option('analyticsCode', '')); ?>
     <?php endif; ?>
 </head>
-<body class="timellow-<?php echo htmlspecialchars((string) $this->archiveType, ENT_QUOTES, 'UTF-8'); ?>">
+<?php $timellowHasSidebar = timellow_has_sidebar($this); ?>
+<body class="timellow-<?php echo htmlspecialchars((string) $this->archiveType, ENT_QUOTES, 'UTF-8'); ?><?php echo $timellowHasSidebar ? ' timellow-has-sidebar' : ' timellow-no-sidebar'; ?>">
 <div class="site-shell">
     <div class="container">
         <header class="site-header">
@@ -89,3 +90,7 @@
                 </form>
             </div>
         </header>
+        <div class="site-layout<?php echo $timellowHasSidebar ? ' has-sidebar' : ''; ?>">
+            <?php if ($timellowHasSidebar): ?>
+                <?php $this->need('sidebar.php'); ?>
+            <?php endif; ?>

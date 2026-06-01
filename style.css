@@ -52,6 +52,8 @@
   --radius-md: 12px;
   --radius-sm: 8px;
   --container: 720px;
+  --sidebar: 240px;
+  --wide-container: 1056px;
 }
 
 html[data-theme="dark"] {
@@ -174,6 +176,10 @@ button {
   max-width: var(--container);
   margin: 0 auto;
   padding: 0 24px;
+}
+
+.timellow-has-sidebar .container {
+  max-width: var(--wide-container);
 }
 
 .site-header {
@@ -403,6 +409,203 @@ button {
 
 .site-main > * + * {
   margin-top: 24px;
+}
+
+.site-layout {
+  width: 100%;
+}
+
+.site-layout.has-sidebar {
+  display: grid;
+  grid-template-columns: minmax(0, var(--sidebar)) minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 48px;
+}
+
+.site-layout.has-sidebar .site-main {
+  min-width: 0;
+}
+
+.site-sidebar {
+  position: sticky;
+  top: 24px;
+  min-width: 0;
+  padding-bottom: 48px;
+}
+
+.sidebar-widget + .sidebar-widget {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-widget-title {
+  margin: 0 0 14px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sidebar-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  text-align: center;
+}
+
+.sidebar-profile-avatar {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, var(--accent-veil-strong), var(--accent-veil-soft)),
+    var(--surface-muted);
+  color: var(--accent);
+}
+
+.sidebar-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sidebar-profile-avatar span {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.sidebar-profile-name {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sidebar-profile-bio {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.sidebar-profile-links {
+  justify-content: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.sidebar-profile-link {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.sidebar-profile-link:hover,
+.sidebar-profile-link:focus-visible {
+  color: var(--accent);
+}
+
+.sidebar-profile-link:focus-visible,
+.sidebar-item-link:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 3px;
+}
+
+.sidebar-profile-link svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-list-item {
+  min-width: 0;
+}
+
+.sidebar-item-link {
+  display: block;
+  min-width: 0;
+}
+
+.sidebar-item-title,
+.sidebar-comment-text,
+.sidebar-moment-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sidebar-item-title {
+  -webkit-line-clamp: 2;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+  transition: color 0.2s ease;
+}
+
+.sidebar-comment-author {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.sidebar-comment-text,
+.sidebar-moment-text {
+  -webkit-line-clamp: 3;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.7;
+  transition: color 0.2s ease;
+}
+
+.sidebar-item-meta {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sidebar-item-link:hover .sidebar-item-title,
+.sidebar-item-link:hover .sidebar-comment-author,
+.sidebar-item-link:hover .sidebar-comment-text,
+.sidebar-item-link:hover .sidebar-moment-text {
+  color: var(--accent);
 }
 
 .page-hero {
@@ -1172,6 +1375,10 @@ button {
   margin-top: -22px;
 }
 
+.site-layout + .sns-links {
+  margin-top: -22px;
+}
+
 .pagination + .sns-links {
   margin-top: 10px;
 }
@@ -1910,6 +2117,24 @@ button {
 
 .floating-action[hidden] {
   display: none;
+}
+
+@media (max-width: 960px) {
+  .timellow-has-sidebar .container {
+    max-width: var(--container);
+  }
+
+  .site-layout.has-sidebar {
+    display: block;
+  }
+
+  .site-layout.has-sidebar .site-main {
+    width: 100%;
+  }
+
+  .site-sidebar {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {

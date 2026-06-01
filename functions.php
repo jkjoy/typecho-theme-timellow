@@ -63,6 +63,45 @@ function themeConfig($form)
     );
     $form->addInput($subtitle);
 
+    $layoutMode = new \Typecho\Widget\Helper\Form\Element\Select(
+        'layoutMode',
+        [
+            'single' => _t('单栏显示'),
+            'two_column' => _t('双栏显示')
+        ],
+        'single',
+        _t('页面布局'),
+        _t('选择“双栏显示”后，正文左侧会显示可配置侧边栏。')
+    );
+    $form->addInput($layoutMode);
+
+    $sidebarWidgets = new \Typecho\Widget\Helper\Form\Element\Checkbox(
+        'sidebarWidgets',
+        timellow_sidebar_available_widgets(),
+        timellow_sidebar_default_widgets(),
+        _t('侧边栏小组件'),
+        _t('仅在页面布局选择“双栏显示”时生效。取消全部勾选时不显示侧边栏。')
+    );
+    $form->addInput($sidebarWidgets);
+
+    $sidebarProfileAvatar = new \Typecho\Widget\Helper\Form\Element\Text(
+        'sidebarProfileAvatar',
+        null,
+        '',
+        _t('侧边栏博主头像'),
+        _t('可填写头像图片 URL，留空则显示站点名称首字。')
+    );
+    $form->addInput($sidebarProfileAvatar);
+
+    $sidebarProfileBio = new \Typecho\Widget\Helper\Form\Element\Textarea(
+        'sidebarProfileBio',
+        null,
+        '',
+        _t('侧边栏博主简介'),
+        _t('显示在“博主信息”小组件中，留空则使用站点副标题。')
+    );
+    $form->addInput($sidebarProfileBio);
+    
     $icpRecord = new \Typecho\Widget\Helper\Form\Element\Text(
         'icpRecord',
         null,
@@ -251,7 +290,28 @@ function themeInit($archive)
 function timellow_option($name, $default = '')
 {
     $options = \Typecho\Widget::widget('Widget_Options');
-    return isset($options->$name) && trim((string) $options->$name) !== '' ? $options->$name : $default;
+    if (!isset($options->$name)) {
+        return $default;
+    }
+
+    $value = $options->$name;
+    if (is_array($value)) {
+        return !empty($value) ? $value : $default;
+    }
+
+    return trim((string) $value) !== '' ? $value : $default;
+}
+
+function timellow_option_exists($name)
+{
+    $options = \Typecho\Widget::widget('Widget_Options');
+    return isset($options->$name);
+}
+
+function timellow_option_raw($name, $default = null)
+{
+    $options = \Typecho\Widget::widget('Widget_Options');
+    return isset($options->$name) ? $options->$name : $default;
 }
 
 function timellow_site_title()
@@ -1706,6 +1766,361 @@ function timellow_render_pagination($widget)
         ? '<a class="page-link" href="' . htmlspecialchars($nextUrl, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(_t('下一页'), ENT_QUOTES, 'UTF-8') . '</a>'
         : '<span class="page-link is-disabled">' . htmlspecialchars(_t('下一页'), ENT_QUOTES, 'UTF-8') . '</span>';
     echo '</nav>';
+}
+
+function timellow_sidebar_available_widgets()
+{
+    return [
+        'profile' => _t('博主信息'),
+        'latest_posts' => _t('最新文章'),
+        'popular_posts' => _t('热门文章'),
+        'latest_comments' => _t('最新评论'),
+        'latest_moments' => _t('最新说说')
+    ];
+}
+
+function timellow_sidebar_default_widgets()
+{
+    return array_keys(timellow_sidebar_available_widgets());
+}
+
+function timellow_admin_screen_name($uid = 1)
+{
+    static $cache = [];
+    $uid = max(1, (int) $uid);
+
+    if (array_key_exists($uid, $cache)) {
+        return $cache[$uid];
+    }
+
+    $cache[$uid] = '';
+
+    try {
+        \Typecho\Widget::widget('Widget_Users_Author@timellow_admin_' . $uid, ['uid' => $uid])->to($author);
+        if ($author->next()) {
+            $screenName = trim((string) $author->screenName);
+            if ($screenName !== '') {
+                $cache[$uid] = $screenName;
+                return $cache[$uid];
+            }
+
+            $name = trim((string) $author->name);
+            if ($name !== '') {
+                $cache[$uid] = $name;
+                return $cache[$uid];
+            }
+        }
+    } catch (Throwable $exception) {
+    }
+
+    return $cache[$uid];
+}
+
+function timellow_normalize_option_list($value, array $allowed = [])
+{
+    if (!is_array($value)) {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return [];
+        }
+
+        $decodedJson = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decodedJson)) {
+            $value = $decodedJson;
+        } else {
+            $decoded = @unserialize($value);
+            if (($decoded !== false || $value === 'b:0;') && is_array($decoded)) {
+                $value = $decoded;
+            } else {
+                $value = preg_split('/[,，|]+/u', $value);
+            }
+        }
+    }
+
+    $result = [];
+    foreach ($value as $key => $item) {
+        if (!is_int($key) && timellow_truthy($item)) {
+            $candidate = trim((string) $key);
+            if ($candidate !== '' && (empty($allowed) || in_array($candidate, $allowed, true))) {
+                $result[] = $candidate;
+            }
+        }
+
+        if (is_scalar($item)) {
+            $candidate = trim((string) $item);
+            if ($candidate !== '' && (empty($allowed) || in_array($candidate, $allowed, true))) {
+                $result[] = $candidate;
+            }
+        }
+    }
+
+    return array_values(array_unique($result));
+}
+
+function timellow_layout_mode()
+{
+    $mode = timellow_option_raw('layoutMode', 'single');
+    $mode = is_scalar($mode) ? trim((string) $mode) : 'single';
+
+    return $mode === 'two_column' ? 'two_column' : 'single';
+}
+
+function timellow_sidebar_widgets()
+{
+    $available = timellow_sidebar_available_widgets();
+    $allowed = array_keys($available);
+
+    if (!timellow_option_exists('sidebarWidgets')) {
+        return timellow_sidebar_default_widgets();
+    }
+
+    return timellow_normalize_option_list(timellow_option_raw('sidebarWidgets', []), $allowed);
+}
+
+function timellow_sidebar_widget_enabled($name)
+{
+    return in_array((string) $name, timellow_sidebar_widgets(), true);
+}
+
+function timellow_has_sidebar($archive = null)
+{
+    return timellow_layout_mode() === 'two_column' && !empty(timellow_sidebar_widgets());
+}
+
+function timellow_sidebar_limit()
+{
+    return 5;
+}
+
+function timellow_sidebar_date($timestamp)
+{
+    $timestamp = (int) $timestamp;
+    return $timestamp > 0 ? date('Y-m-d', $timestamp) : '';
+}
+
+function timellow_sidebar_plain_excerpt($text, $length = 48)
+{
+    $text = html_entity_decode(strip_tags((string) $text), ENT_QUOTES, 'UTF-8');
+    $text = trim((string) preg_replace('/\s+/u', ' ', $text));
+
+    if ($text === '') {
+        return '';
+    }
+
+    $length = max(1, (int) $length);
+    if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+        return mb_strlen($text, 'UTF-8') > $length
+            ? mb_substr($text, 0, $length, 'UTF-8') . '...'
+            : $text;
+    }
+
+    return strlen($text) > $length ? substr($text, 0, $length) . '...' : $text;
+}
+
+function timellow_sidebar_post_item($posts)
+{
+    $title = trim((string) $posts->title);
+
+    return [
+        'title' => $title !== '' ? $title : _t('未命名文章'),
+        'url' => (string) $posts->permalink,
+        'date' => timellow_sidebar_date($posts->created),
+        'comments' => (int) $posts->commentsNum
+    ];
+}
+
+function timellow_sidebar_recent_posts($limit = null)
+{
+    $limit = $limit === null ? timellow_sidebar_limit() : (int) $limit;
+    $limit = max(1, min(10, $limit));
+    $items = [];
+
+    try {
+        \Typecho\Widget::widget(
+            'Widget_Contents_Post_Recent@timellow_sidebar_recent_posts_' . $limit,
+            'pageSize=' . $limit
+        )->to($posts);
+
+        while ($posts->next()) {
+            $items[] = timellow_sidebar_post_item($posts);
+        }
+    } catch (Throwable $exception) {
+        return [];
+    }
+
+    return $items;
+}
+
+function timellow_sidebar_popular_posts($limit = null)
+{
+    $limit = $limit === null ? timellow_sidebar_limit() : (int) $limit;
+    $limit = max(1, min(10, $limit));
+    $items = [];
+
+    try {
+        $db = \Typecho\Db::get();
+        $options = \Typecho\Widget::widget('Widget_Options');
+        $query = $db->select(
+            'table.contents.cid',
+            'table.contents.title',
+            'table.contents.slug',
+            'table.contents.created',
+            'table.contents.modified',
+            'table.contents.type',
+            'table.contents.status',
+            'table.contents.commentsNum',
+            'table.contents.allowComment',
+            'table.contents.allowPing',
+            'table.contents.allowFeed',
+            'table.contents.template',
+            'table.contents.password',
+            'table.contents.authorId',
+            'table.contents.parent'
+        )
+            ->from('table.contents')
+            ->where('table.contents.status = ?', 'publish')
+            ->where('table.contents.created < ?', $options->time)
+            ->where('table.contents.type = ?', 'post')
+            ->order('table.contents.commentsNum', \Typecho\Db::SORT_DESC)
+            ->order('table.contents.created', \Typecho\Db::SORT_DESC)
+            ->limit($limit);
+
+        \Typecho\Widget::widget(
+            'Widget_Contents_From@timellow_sidebar_popular_posts_' . $limit,
+            ['query' => $query]
+        )->to($posts);
+
+        while ($posts->next()) {
+            $items[] = timellow_sidebar_post_item($posts);
+        }
+    } catch (Throwable $exception) {
+        return [];
+    }
+
+    return $items;
+}
+
+function timellow_sidebar_recent_comments($limit = null)
+{
+    $limit = $limit === null ? timellow_sidebar_limit() : (int) $limit;
+    $limit = max(1, min(10, $limit));
+    $items = [];
+
+    try {
+        \Typecho\Widget::widget(
+            'Widget_Comments_Recent@timellow_sidebar_recent_comments_' . $limit,
+            'pageSize=' . $limit
+        )->to($comments);
+
+        while ($comments->next()) {
+            $text = timellow_sidebar_plain_excerpt($comments->content, 44);
+            if ($text === '') {
+                continue;
+            }
+
+            $items[] = [
+                'author' => trim((string) $comments->author) !== '' ? (string) $comments->author : _t('匿名'),
+                'title' => trim((string) $comments->title),
+                'url' => (string) $comments->permalink,
+                'date' => timellow_sidebar_date($comments->created),
+                'text' => $text
+            ];
+        }
+    } catch (Throwable $exception) {
+        return [];
+    }
+
+    return $items;
+}
+
+function timellow_sidebar_moments_page_url()
+{
+    static $url = null;
+
+    if ($url !== null) {
+        return $url;
+    }
+
+    $url = '';
+
+    try {
+        $db = \Typecho\Db::get();
+        foreach (['moments', 'shuoshuo'] as $slug) {
+            $query = $db->select(
+                'table.contents.cid',
+                'table.contents.title',
+                'table.contents.slug',
+                'table.contents.created',
+                'table.contents.modified',
+                'table.contents.type',
+                'table.contents.status',
+                'table.contents.commentsNum',
+                'table.contents.allowComment',
+                'table.contents.allowPing',
+                'table.contents.allowFeed',
+                'table.contents.template',
+                'table.contents.password',
+                'table.contents.authorId',
+                'table.contents.parent'
+            )
+                ->from('table.contents')
+                ->where('table.contents.type = ?', 'page')
+                ->where('table.contents.status = ?', 'publish')
+                ->where('table.contents.slug = ?', $slug)
+                ->limit(1);
+
+            \Typecho\Widget::widget(
+                'Widget_Contents_From@timellow_sidebar_moments_page_' . $slug,
+                ['query' => $query]
+            )->to($page);
+
+            if ($page->next()) {
+                $url = (string) $page->permalink;
+                break;
+            }
+        }
+    } catch (Throwable $exception) {
+        $url = '';
+    }
+
+    if ($url === '') {
+        $url = timellow_site_url('/moments');
+    }
+
+    return $url;
+}
+
+function timellow_sidebar_recent_moments($limit = null)
+{
+    $limit = $limit === null ? timellow_sidebar_limit() : (int) $limit;
+    $limit = max(1, min(10, $limit));
+    $items = [];
+
+    $result = timellow_fetch_moments($limit);
+    if (empty($result['items'])) {
+        return [];
+    }
+
+    $baseUrl = timellow_sidebar_moments_page_url();
+    foreach (array_slice($result['items'], 0, $limit) as $moment) {
+        $text = timellow_sidebar_plain_excerpt($moment['content'] ?? '', 46);
+        if ($text === '' && !empty($moment['media'])) {
+            $text = _t('分享了媒体内容');
+        }
+
+        if ($text === '') {
+            continue;
+        }
+
+        $mid = (int) ($moment['mid'] ?? 0);
+        $items[] = [
+            'text' => $text,
+            'url' => $mid > 0 ? $baseUrl . '#moment-' . $mid : $baseUrl,
+            'date' => timellow_sidebar_date($moment['created'] ?? 0)
+        ];
+    }
+
+    return $items;
 }
 
 function timellow_link_host($url)
