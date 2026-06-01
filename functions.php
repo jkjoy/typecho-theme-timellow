@@ -357,6 +357,44 @@ function timellow_site_url($path = '')
     return $siteUrl . '/' . ltrim($path, '/');
 }
 
+function timellow_versioned_url($url, $version = null)
+{
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    $version = $version === null ? TIMELLOW_VERSION : trim((string) $version);
+    if ($version === '') {
+        return $url;
+    }
+
+    $fragment = '';
+    $fragmentPos = strpos($url, '#');
+    if ($fragmentPos !== false) {
+        $fragment = substr($url, $fragmentPos);
+        $url = substr($url, 0, $fragmentPos);
+    }
+
+    $lastChar = substr($url, -1);
+    $separator = strpos($url, '?') === false ? '?' : (($lastChar === '?' || $lastChar === '&') ? '' : '&');
+
+    return $url . $separator . 'v=' . rawurlencode($version) . $fragment;
+}
+
+function timellow_asset_url($path)
+{
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $themeUrl = isset($options->themeUrl) ? rtrim((string) $options->themeUrl, '/') : '';
+    $path = trim((string) $path);
+
+    if ($themeUrl === '') {
+        return timellow_versioned_url(ltrim($path, '/'));
+    }
+
+    return timellow_versioned_url($themeUrl . '/' . ltrim($path, '/'));
+}
+
 function timellow_sns_url_option($name)
 {
     $url = trim((string) timellow_option($name, ''));
@@ -1049,12 +1087,10 @@ function timellow_article_font_mode()
 
 function timellow_lxgw_article_font_face()
 {
-    $baseUrl = rtrim((string) \Typecho\Widget::widget('Widget_Options')->themeUrl, '/');
-    if ($baseUrl === '') {
+    $fontUrl = timellow_asset_url('assets/fonts/lxgw.woff2');
+    if ($fontUrl === '') {
         return '';
     }
-
-    $fontUrl = $baseUrl . '/assets/fonts/lxgw.woff2';
 
     return '@font-face {' . "\n"
         . '  font-family: "Timellow LXGW";' . "\n"
@@ -1228,8 +1264,6 @@ function timellow_cover_pool()
         return $pool;
     }
 
-    $baseUrl = rtrim((string) \Typecho\Widget::widget('Widget_Options')->themeUrl, '/');
-
     foreach ($items as $item) {
         if ($item === '.' || $item === '..') {
             continue;
@@ -1245,7 +1279,7 @@ function timellow_cover_pool()
             continue;
         }
 
-        $pool[] = $baseUrl . '/assets/cover/' . rawurlencode($item);
+        $pool[] = timellow_asset_url('assets/cover/' . rawurlencode($item));
     }
 
     sort($pool, SORT_NATURAL | SORT_FLAG_CASE);

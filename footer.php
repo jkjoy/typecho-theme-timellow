@@ -51,7 +51,7 @@ if ($timellowCanEditCurrent) {
         </nav>
     </div>
 </div>
-<script src="<?php $this->options->themeUrl('assets/theme.js?v=' . rawurlencode(TIMELLOW_VERSION)); ?>"></script>
+<script src="<?php echo timellow_escape(timellow_asset_url('assets/theme.js')); ?>"></script>
 <?php $this->footer(); ?>
 </body>
 </html>
