@@ -25,11 +25,16 @@ function timellow_theme_index_version()
         }
     }
 
-    return $version !== '' ? $version : '0.0.0';
+    return $version;
+}
+
+function timellow_theme_version()
+{
+    return timellow_theme_index_version();
 }
 
 if (!defined('TIMELLOW_VERSION')) {
-    define('TIMELLOW_VERSION', timellow_theme_index_version());
+    define('TIMELLOW_VERSION', timellow_theme_version());
 }
 
 if (!defined('TIMELLOW_UPDATE_REPO')) {
@@ -101,6 +106,15 @@ function themeConfig($form)
         _t('显示在“博主信息”小组件中，留空则使用站点副标题。')
     );
     $form->addInput($sidebarProfileBio);
+
+    $momentsPageSlug = new \Typecho\Widget\Helper\Form\Element\Text(
+        'momentsPageSlug',
+        null,
+        '',
+        _t('说说页面 Slug'),
+        _t('说说独立页使用自定义 slug 时填写；留空则自动查找选择了“说说”模板的页面，并兼容 moments/shuoshuo。')
+    );
+    $form->addInput($momentsPageSlug);
     
     $icpRecord = new \Typecho\Widget\Helper\Form\Element\Text(
         'icpRecord',
@@ -280,6 +294,10 @@ function themeInit($archive)
         'moments' => 'page-moments.php',
         'shuoshuo' => 'page-moments.php'
     ];
+    $momentsSlug = timellow_moments_page_slug();
+    if ($momentsSlug !== '') {
+        $slugMap[$momentsSlug] = 'page-moments.php';
+    }
 
     $slug = trim((string) $archive->slug);
     if ($slug !== '' && isset($slugMap[$slug]) && file_exists(__DIR__ . DIRECTORY_SEPARATOR . $slugMap[$slug])) {
@@ -357,14 +375,19 @@ function timellow_site_url($path = '')
     return $siteUrl . '/' . ltrim($path, '/');
 }
 
-function timellow_versioned_url($url, $version = null)
+function timellow_moments_page_slug()
+{
+    return trim(trim((string) timellow_option('momentsPageSlug', ''), "/ \t\n\r\0\x0B"));
+}
+
+function timellow_versioned_url($url)
 {
     $url = trim((string) $url);
     if ($url === '') {
         return '';
     }
 
-    $version = $version === null ? TIMELLOW_VERSION : trim((string) $version);
+    $version = timellow_theme_version();
     if ($version === '') {
         return $url;
     }
@@ -613,7 +636,7 @@ function timellow_update_state_has_upgrade(array $state)
     $remoteVersion = timellow_version_number((string) ($state['remote_version'] ?? ''));
     return !empty($state['has_update'])
         && $remoteVersion !== ''
-        && version_compare($remoteVersion, TIMELLOW_VERSION, '>');
+        && version_compare($remoteVersion, timellow_theme_version(), '>');
 }
 
 function timellow_http_get($url, array $headers = [], $timeout = 20, $outputFile = null)
@@ -630,7 +653,7 @@ function timellow_http_get($url, array $headers = [], $timeout = 20, $outputFile
         }
 
         $requestHeaders = array_merge([
-            'User-Agent: Timellow-Theme-Updater/' . TIMELLOW_VERSION,
+            'User-Agent: Timellow-Theme-Updater/' . timellow_theme_version(),
             'Accept: application/vnd.github+json'
         ], $headers);
 
@@ -674,7 +697,7 @@ function timellow_http_get($url, array $headers = [], $timeout = 20, $outputFile
             'method' => 'GET',
             'timeout' => max(10, (int) $timeout),
             'header' => implode("\r\n", array_merge([
-                'User-Agent: Timellow-Theme-Updater/' . TIMELLOW_VERSION,
+                'User-Agent: Timellow-Theme-Updater/' . timellow_theme_version(),
                 'Accept: application/vnd.github+json'
             ], $headers))
         ]
@@ -740,7 +763,7 @@ function timellow_create_backup($themeDir)
         return '';
     }
 
-    $backupPath = $backupDir . '/timellow-' . TIMELLOW_VERSION . '-' . date('Ymd-His') . '.zip';
+    $backupPath = $backupDir . '/timellow-' . timellow_theme_version() . '-' . date('Ymd-His') . '.zip';
     $zip = new ZipArchive();
     if ($zip->open($backupPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
         return '';
@@ -863,8 +886,8 @@ function timellow_install_latest_release()
 
     $latest = timellow_latest_release();
 
-    if (version_compare($latest['version'], TIMELLOW_VERSION, '<=')) {
-        return '当前已是最新版本：' . TIMELLOW_VERSION . '。';
+    if (version_compare($latest['version'], timellow_theme_version(), '<=')) {
+        return '当前已是最新版本：' . timellow_theme_version() . '。';
     }
 
     $themeDir = timellow_runtime_directory();
@@ -957,9 +980,9 @@ function timellow_handle_update_request()
     try {
         if ($action === 'check') {
             $latest = timellow_latest_release();
-            $hasUpdate = version_compare($latest['version'], TIMELLOW_VERSION, '>');
+            $hasUpdate = version_compare($latest['version'], timellow_theme_version(), '>');
             timellow_save_update_state([
-                'current_version' => TIMELLOW_VERSION,
+                'current_version' => timellow_theme_version(),
                 'remote_version' => (string) $latest['version'],
                 'remote_tag' => (string) $latest['tag'],
                 'release_url' => (string) $latest['url'],
@@ -970,9 +993,9 @@ function timellow_handle_update_request()
             ]);
 
             if ($hasUpdate) {
-                timellow_update_notice('发现新版本 ' . $latest['tag'] . '，当前版本 ' . TIMELLOW_VERSION . '。已显示“在线升级”按钮。', 'success');
+                timellow_update_notice('发现新版本 ' . $latest['tag'] . '，当前版本 ' . timellow_theme_version() . '。已显示“在线升级”按钮。', 'success');
             } else {
-                timellow_update_notice('当前已是最新版本：' . TIMELLOW_VERSION . '。', 'notice');
+                timellow_update_notice('当前已是最新版本：' . timellow_theme_version() . '。', 'notice');
             }
         } elseif ($action === 'install') {
             $state = timellow_read_update_state();
@@ -989,7 +1012,7 @@ function timellow_handle_update_request()
     } catch (Throwable $exception) {
         if ($action === 'check') {
             timellow_save_update_state([
-                'current_version' => TIMELLOW_VERSION,
+                'current_version' => timellow_theme_version(),
                 'remote_version' => '',
                 'remote_tag' => '',
                 'release_url' => '',
@@ -1039,7 +1062,7 @@ function timellow_add_update_panel($form)
         : '';
 
     $html = '<li><label class="typecho-label">在线升级</label></li>'
-        . '<li><p class="description">当前版本：<strong>' . timellow_escape(TIMELLOW_VERSION) . '</strong>。更新源：<a href="' . timellow_escape($repoUrl) . '" target="_blank" rel="noopener noreferrer">' . timellow_escape(TIMELLOW_UPDATE_REPO) . '</a>。</p>'
+        . '<li><p class="description">当前版本：<strong>' . timellow_escape(timellow_theme_version()) . '</strong>。更新源：<a href="' . timellow_escape($repoUrl) . '" target="_blank" rel="noopener noreferrer">' . timellow_escape(TIMELLOW_UPDATE_REPO) . '</a>。</p>'
         . $statusHtml
         . '<p style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;"><a class="btn" style="' . $buttonStyle . '" href="' . timellow_escape($checkUrl) . '">检查更新</a>'
         . $upgradeButton . '</p>'
@@ -2079,38 +2102,66 @@ function timellow_sidebar_moments_page_url()
 
     try {
         $db = \Typecho\Db::get();
-        foreach (['moments', 'shuoshuo'] as $slug) {
-            $query = $db->select(
-                'table.contents.cid',
-                'table.contents.title',
-                'table.contents.slug',
-                'table.contents.created',
-                'table.contents.modified',
-                'table.contents.type',
-                'table.contents.status',
-                'table.contents.commentsNum',
-                'table.contents.allowComment',
-                'table.contents.allowPing',
-                'table.contents.allowFeed',
-                'table.contents.template',
-                'table.contents.password',
-                'table.contents.authorId',
-                'table.contents.parent'
-            )
+        $pageColumns = [
+            'table.contents.cid',
+            'table.contents.title',
+            'table.contents.slug',
+            'table.contents.created',
+            'table.contents.modified',
+            'table.contents.type',
+            'table.contents.status',
+            'table.contents.commentsNum',
+            'table.contents.allowComment',
+            'table.contents.allowPing',
+            'table.contents.allowFeed',
+            'table.contents.template',
+            'table.contents.password',
+            'table.contents.authorId',
+            'table.contents.parent'
+        ];
+        $findPageUrl = static function ($query, $alias) {
+            \Typecho\Widget::widget(
+                'Widget_Contents_From@' . $alias,
+                ['query' => $query]
+            )->to($page);
+
+            return $page->next() ? (string) $page->permalink : '';
+        };
+        $findPageUrlBySlug = static function ($slug) use ($db, $pageColumns, $findPageUrl) {
+            $query = $db->select(...$pageColumns)
                 ->from('table.contents')
                 ->where('table.contents.type = ?', 'page')
                 ->where('table.contents.status = ?', 'publish')
                 ->where('table.contents.slug = ?', $slug)
                 ->limit(1);
 
-            \Typecho\Widget::widget(
-                'Widget_Contents_From@timellow_sidebar_moments_page_' . $slug,
-                ['query' => $query]
-            )->to($page);
+            return $findPageUrl($query, 'timellow_sidebar_moments_page_' . md5($slug));
+        };
+        $customSlug = timellow_moments_page_slug();
 
-            if ($page->next()) {
-                $url = (string) $page->permalink;
+        if ($customSlug !== '') {
+            $url = $findPageUrlBySlug($customSlug);
+        }
+
+        if ($url === '') {
+            $query = $db->select(...$pageColumns)
+                ->from('table.contents')
+                ->where('table.contents.type = ?', 'page')
+                ->where('table.contents.status = ?', 'publish')
+                ->where('table.contents.template IN ?', ['page-moments.php', 'page-moments'])
+                ->order('table.contents.created', \Typecho\Db::SORT_ASC)
+                ->limit(1);
+
+            $url = $findPageUrl($query, 'timellow_sidebar_moments_page_template');
+        }
+
+        foreach (['moments', 'shuoshuo'] as $slug) {
+            if ($url !== '') {
                 break;
+            }
+
+            if ($slug !== $customSlug) {
+                $url = $findPageUrlBySlug($slug);
             }
         }
     } catch (Throwable $exception) {
@@ -2118,7 +2169,8 @@ function timellow_sidebar_moments_page_url()
     }
 
     if ($url === '') {
-        $url = timellow_site_url('/moments');
+        $fallbackSlug = timellow_moments_page_slug();
+        $url = timellow_site_url('/' . ($fallbackSlug !== '' ? rawurlencode($fallbackSlug) : 'moments'));
     }
 
     return $url;
