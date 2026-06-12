@@ -3,7 +3,7 @@
 <main class="site-main">
     <article class="content-card" itemscope itemtype="https://schema.org/BlogPosting">
         <header class="article-header">
-            <h1 class="article-title" itemprop="headline"><?php $this->title(); ?></h1>
+            <h1 class="article-title" itemprop="headline"><?php echo timellow_escape_title($this->title); ?></h1>
             <div class="article-meta">
                 <time datetime="<?php $this->date('c'); ?>" itemprop="datePublished"><?php $this->date('Y-m-d'); ?></time>
                 <?php if (!empty($this->categories)): ?>

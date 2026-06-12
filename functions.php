@@ -335,7 +335,7 @@ function timellow_option_raw($name, $default = null)
 function timellow_site_title()
 {
     $options = \Typecho\Widget::widget('Widget_Options');
-    return isset($options->title) ? trim((string) $options->title) : '';
+    return isset($options->title) ? timellow_title_text($options->title) : '';
 }
 
 function timellow_capture($callback)
@@ -356,6 +356,19 @@ function timellow_sanitize_css_text($value)
 function timellow_escape($value)
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function timellow_title_text($value, $fallback = '')
+{
+    $title = html_entity_decode((string) $value, ENT_QUOTES, 'UTF-8');
+    $title = trim((string) $title);
+
+    return $title !== '' ? $title : (string) $fallback;
+}
+
+function timellow_escape_title($value, $fallback = '')
+{
+    return timellow_escape(timellow_title_text($value, $fallback));
 }
 
 function timellow_site_url($path = '')
@@ -1183,13 +1196,13 @@ function timellow_article_font_style_block()
 
 function timellow_site_subtitle()
 {
-    $subtitle = trim((string) timellow_option('subtitle', ''));
+    $subtitle = timellow_title_text(timellow_option('subtitle', ''));
     if ($subtitle !== '') {
         return $subtitle;
     }
 
     $options = \Typecho\Widget::widget('Widget_Options');
-    return trim((string) $options->description);
+    return timellow_title_text($options->description);
 }
 
 function timellow_document_title($archive)
@@ -1202,7 +1215,7 @@ function timellow_document_title($archive)
 
     $title = '';
     if ($archive->is('post') || $archive->is('page') || $archive->is('attachment')) {
-        $title = trim((string) $archive->title);
+        $title = timellow_title_text($archive->title);
     } else {
         $title = timellow_capture(function () use ($archive) {
             $archive->archiveTitle([
@@ -1214,8 +1227,10 @@ function timellow_document_title($archive)
         });
     }
 
+    $title = timellow_title_text($title);
+
     if ($title === '') {
-        $title = trim((string) $archive->title);
+        $title = timellow_title_text($archive->title);
     }
 
     if ($siteTitle === '') {
@@ -1249,7 +1264,7 @@ function timellow_summary($archive, $length = 110, $default = '')
     }
 
     if ($summary === '') {
-        $summary = $default !== '' ? $default : trim((string) $archive->title);
+        $summary = $default !== '' ? $default : timellow_title_text($archive->title);
     }
 
     return \Typecho\Common::subStr($summary, 0, (int) $length, '...');
@@ -1257,7 +1272,7 @@ function timellow_summary($archive, $length = 110, $default = '')
 
 function timellow_first_character($text)
 {
-    $text = trim((string) $text);
+    $text = timellow_title_text($text);
     if ($text === '') {
         return 'T';
     }
@@ -1322,7 +1337,7 @@ function timellow_random_cover($archive)
     } elseif (isset($archive->slug)) {
         $seed = (string) $archive->slug;
     } else {
-        $seed = (string) $archive->title;
+        $seed = timellow_title_text($archive->title);
     }
 
     $index = abs((int) crc32($seed)) % count($pool);
@@ -1716,7 +1731,7 @@ function timellow_archive_heading($archive)
     }
 
     return [
-        'title' => $title !== '' ? $title : _t('归档'),
+        'title' => timellow_title_text($title, _t('归档')),
         'description' => $description
     ];
 }
@@ -1949,6 +1964,18 @@ function timellow_sidebar_limit()
     return 5;
 }
 
+function timellow_sidebar_comment_limit()
+{
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $limit = isset($options->commentsPageSize) ? (int) $options->commentsPageSize : 0;
+
+    if ($limit <= 0) {
+        return timellow_sidebar_limit();
+    }
+
+    return min(50, $limit);
+}
+
 function timellow_sidebar_date($timestamp)
 {
     $timestamp = (int) $timestamp;
@@ -1976,7 +2003,7 @@ function timellow_sidebar_plain_excerpt($text, $length = 48)
 
 function timellow_sidebar_post_item($posts)
 {
-    $title = trim((string) $posts->title);
+    $title = timellow_title_text($posts->title);
 
     return [
         'title' => $title !== '' ? $title : _t('未命名文章'),
@@ -1984,6 +2011,14 @@ function timellow_sidebar_post_item($posts)
         'date' => timellow_sidebar_date($posts->created),
         'comments' => (int) $posts->commentsNum
     ];
+}
+
+function timellow_comment_is_author($comments)
+{
+    $authorId = isset($comments->authorId) ? (int) $comments->authorId : 0;
+    $ownerId = isset($comments->ownerId) ? (int) $comments->ownerId : 0;
+
+    return $authorId > 0 && $ownerId > 0 && $authorId === $ownerId;
 }
 
 function timellow_sidebar_recent_posts($limit = null)
@@ -2059,8 +2094,8 @@ function timellow_sidebar_popular_posts($limit = null)
 
 function timellow_sidebar_recent_comments($limit = null)
 {
-    $limit = $limit === null ? timellow_sidebar_limit() : (int) $limit;
-    $limit = max(1, min(10, $limit));
+    $limit = $limit === null ? timellow_sidebar_comment_limit() : (int) $limit;
+    $limit = max(1, min(50, $limit));
     $items = [];
 
     try {
@@ -2070,6 +2105,10 @@ function timellow_sidebar_recent_comments($limit = null)
         )->to($comments);
 
         while ($comments->next()) {
+            if (timellow_comment_is_author($comments)) {
+                continue;
+            }
+
             $text = timellow_sidebar_plain_excerpt($comments->content, 44);
             if ($text === '') {
                 continue;
@@ -2077,7 +2116,7 @@ function timellow_sidebar_recent_comments($limit = null)
 
             $items[] = [
                 'author' => trim((string) $comments->author) !== '' ? (string) $comments->author : _t('匿名'),
-                'title' => trim((string) $comments->title),
+                'title' => timellow_title_text($comments->title),
                 'url' => (string) $comments->permalink,
                 'date' => timellow_sidebar_date($comments->created),
                 'text' => $text
@@ -2676,7 +2715,7 @@ function threadedComments($comments, $options)
     if ($comments->levels > 0) {
         $commentClass .= ' is-children';
     }
-    if ($comments->authorId && $comments->authorId == $comments->ownerId) {
+    if (timellow_comment_is_author($comments)) {
         $commentClass .= ' is-author';
     }
     ?>

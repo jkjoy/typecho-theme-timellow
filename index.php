@@ -4,7 +4,7 @@
  * 简单、清爽、极简的 Typecho 主题
  * @package Timellow
  * @author 时光沉淀
- * @version 1.2.2
+ * @version 1.2.3
  * @link https://www.timellow.com/
  */
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
@@ -29,9 +29,9 @@ $timellowPosts = timellow_index_posts_source($this);
                 $isSticky = timellow_is_sticky_post($timellowPosts);
                 ?>
                 <article class="post-card<?php if ($isSticky): ?> is-sticky<?php endif; ?>" data-post-cid="<?php echo $postCid; ?>" itemscope itemtype="https://schema.org/BlogPosting">
-                    <a class="post-thumb-link" href="<?php $timellowPosts->permalink(); ?>" aria-label="<?php $timellowPosts->title(); ?>">
+                    <a class="post-thumb-link" href="<?php $timellowPosts->permalink(); ?>" aria-label="<?php echo timellow_escape_title($timellowPosts->title); ?>">
                         <?php if ($cover !== ''): ?>
-                            <img class="post-thumb" src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php $timellowPosts->title(); ?>" loading="lazy" decoding="async">
+                            <img class="post-thumb" src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo timellow_escape_title($timellowPosts->title); ?>" loading="lazy" decoding="async">
                         <?php else: ?>
                             <span class="post-thumb-placeholder"><?php echo htmlspecialchars(timellow_first_character($timellowPosts->title), ENT_QUOTES, 'UTF-8'); ?></span>
                         <?php endif; ?>
@@ -39,7 +39,7 @@ $timellowPosts = timellow_index_posts_source($this);
                     <div class="post-body">
                         <h2 class="post-title" itemprop="headline">
                             <?php if ($isSticky): ?><span class="post-sticky-badge"><?php _e('置顶'); ?></span><?php endif; ?>
-                            <a href="<?php $timellowPosts->permalink(); ?>" itemprop="url"><?php $timellowPosts->title(); ?></a>
+                            <a href="<?php $timellowPosts->permalink(); ?>" itemprop="url"><?php echo timellow_escape_title($timellowPosts->title); ?></a>
                         </h2>
                         <div class="post-meta">
                             <time datetime="<?php $timellowPosts->date('c'); ?>" itemprop="datePublished"><?php $timellowPosts->date('Y-m-d'); ?></time>

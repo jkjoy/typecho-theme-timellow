@@ -5,7 +5,7 @@ $heading = timellow_archive_heading($this);
 ?>
 <main class="site-main">
     <section class="page-hero">
-        <h1 class="page-title"><?php echo htmlspecialchars((string) $heading['title'], ENT_QUOTES, 'UTF-8'); ?></h1>
+        <h1 class="page-title"><?php echo timellow_escape_title($heading['title']); ?></h1>
         <p class="page-description"><?php echo htmlspecialchars((string) $heading['description'], ENT_QUOTES, 'UTF-8'); ?></p>
     </section>
 
@@ -26,9 +26,9 @@ $heading = timellow_archive_heading($this);
                 $isSticky = timellow_is_sticky_post($this);
                 ?>
                 <article class="post-card<?php if ($isSticky): ?> is-sticky<?php endif; ?>" data-post-cid="<?php echo $postCid; ?>" itemscope itemtype="https://schema.org/BlogPosting">
-                    <a class="post-thumb-link" href="<?php $this->permalink(); ?>" aria-label="<?php $this->title(); ?>">
+                    <a class="post-thumb-link" href="<?php $this->permalink(); ?>" aria-label="<?php echo timellow_escape_title($this->title); ?>">
                         <?php if ($cover !== ''): ?>
-                            <img class="post-thumb" src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php $this->title(); ?>" loading="lazy" decoding="async">
+                            <img class="post-thumb" src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo timellow_escape_title($this->title); ?>" loading="lazy" decoding="async">
                         <?php else: ?>
                             <span class="post-thumb-placeholder"><?php echo htmlspecialchars(timellow_first_character($this->title), ENT_QUOTES, 'UTF-8'); ?></span>
                         <?php endif; ?>
@@ -36,7 +36,7 @@ $heading = timellow_archive_heading($this);
                     <div class="post-body">
                         <h2 class="post-title">
                             <?php if ($isSticky): ?><span class="post-sticky-badge"><?php _e('置顶'); ?></span><?php endif; ?>
-                            <a href="<?php $this->permalink(); ?>"><?php $this->title(); ?></a>
+                            <a href="<?php $this->permalink(); ?>"><?php echo timellow_escape_title($this->title); ?></a>
                         </h2>
                         <div class="post-meta">
                             <time datetime="<?php $this->date('c'); ?>"><?php $this->date('Y-m-d'); ?></time>

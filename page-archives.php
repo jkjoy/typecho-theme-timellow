@@ -16,7 +16,7 @@ while ($posts->next()) {
         $groups[$year] = [];
     }
     $groups[$year][] = [
-        'title' => (string) $posts->title,
+        'title' => timellow_title_text($posts->title),
         'permalink' => (string) $posts->permalink,
         'date' => date('m-d', $posts->created)
     ];
@@ -24,7 +24,7 @@ while ($posts->next()) {
 ?>
 <main class="site-main">
     <section class="page-hero">
-        <h1 class="page-title"><?php $this->title(); ?></h1>
+        <h1 class="page-title"><?php echo timellow_escape_title($this->title); ?></h1>
     </section>
 
     <?php if ($pageIntro): ?>
@@ -47,7 +47,7 @@ while ($posts->next()) {
                         <?php foreach ($items as $item): ?>
                             <article class="archive-item">
                                 <time><?php echo htmlspecialchars((string) $item['date'], ENT_QUOTES, 'UTF-8'); ?></time>
-                                <a href="<?php echo htmlspecialchars((string) $item['permalink'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars((string) $item['title'], ENT_QUOTES, 'UTF-8'); ?></a>
+                                <a href="<?php echo htmlspecialchars((string) $item['permalink'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo timellow_escape_title($item['title']); ?></a>
                             </article>
                         <?php endforeach; ?>
                     </div>

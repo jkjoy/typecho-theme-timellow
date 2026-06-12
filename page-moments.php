@@ -12,7 +12,7 @@ $moments = $momentsResult['items'];
 ?>
 <main class="site-main">
     <section class="page-hero">
-        <h1 class="page-title"><?php $this->title(); ?></h1>
+        <h1 class="page-title"><?php echo timellow_escape_title($this->title); ?></h1>
     </section>
 
     <?php if ($pageIntro): ?>

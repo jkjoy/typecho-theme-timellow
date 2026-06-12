@@ -60,7 +60,7 @@
                         <?php while ($pages->next()): ?>
                             <a<?php if ($this->is('page', $pages->slug)): ?> class="is-current"<?php endif; ?>
                                 href="<?php $pages->permalink(); ?>"
-                                title="<?php $pages->title(); ?>"><?php $pages->title(); ?></a>
+                                title="<?php echo timellow_escape_title($pages->title); ?>"><?php echo timellow_escape_title($pages->title); ?></a>
                         <?php endwhile; ?>
                     </nav>
                     <div class="header-tools">

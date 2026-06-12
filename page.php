@@ -2,13 +2,13 @@
 <?php
 $this->need('header.php');
 $summary = timellow_summary($this, 96, timellow_site_subtitle());
-if ($summary === trim((string) $this->title)) {
+if ($summary === timellow_title_text($this->title)) {
     $summary = timellow_site_subtitle();
 }
 ?>
 <main class="site-main">
     <section class="page-hero">
-        <h1 class="page-title"><?php $this->title(); ?></h1>
+        <h1 class="page-title"><?php echo timellow_escape_title($this->title); ?></h1>
     </section>
 
     <article class="content-card">
