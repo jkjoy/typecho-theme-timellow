@@ -1967,7 +1967,7 @@ function timellow_sidebar_limit()
 function timellow_sidebar_comment_limit()
 {
     $options = \Typecho\Widget::widget('Widget_Options');
-    $limit = isset($options->commentsPageSize) ? (int) $options->commentsPageSize : 0;
+    $limit = isset($options->commentsListSize) ? (int) $options->commentsListSize : 0;
 
     if ($limit <= 0) {
         return timellow_sidebar_limit();
@@ -2101,14 +2101,13 @@ function timellow_sidebar_recent_comments($limit = null)
     try {
         \Typecho\Widget::widget(
             'Widget_Comments_Recent@timellow_sidebar_recent_comments_' . $limit,
-            'pageSize=' . $limit
+            [
+                'pageSize' => $limit,
+                'ignoreAuthor' => true
+            ]
         )->to($comments);
 
         while ($comments->next()) {
-            if (timellow_comment_is_author($comments)) {
-                continue;
-            }
-
             $text = timellow_sidebar_plain_excerpt($comments->content, 44);
             if ($text === '') {
                 continue;
