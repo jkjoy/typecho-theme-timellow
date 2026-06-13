@@ -299,6 +299,10 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
       }
 
+      if (link.hasAttribute('target')) {
+        return;
+      }
+
       link.setAttribute('target', '_blank');
       link.setAttribute('rel', 'noopener noreferrer');
     });

@@ -282,6 +282,8 @@ function themeFields($layout)
 
 function themeInit($archive)
 {
+    timellow_apply_comment_options();
+
     if (!$archive->is('page') || !empty($archive->template)) {
         return;
     }
@@ -303,6 +305,17 @@ function themeInit($archive)
     if ($slug !== '' && isset($slugMap[$slug]) && file_exists(__DIR__ . DIRECTORY_SEPARATOR . $slugMap[$slug])) {
         $archive->setThemeFile($slugMap[$slug]);
     }
+}
+
+function timellow_apply_comment_options()
+{
+    $options = \Helper::options();
+
+    $options->commentsAntiSpam = false;
+    $options->commentsMaxNestingLevels = 999;
+    $options->commentsCheckReferer = false;
+    $options->commentsPageDisplay = 'first';
+    $options->commentsOrder = 'DESC';
 }
 
 function timellow_option($name, $default = '')
