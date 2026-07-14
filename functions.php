@@ -1749,48 +1749,6 @@ function timellow_archive_heading($archive)
     ];
 }
 
-function timellow_get_page_template($widget)
-{
-    try {
-        $reflection = new ReflectionClass($widget);
-        if (!$reflection->hasProperty('pageRow')) {
-            return null;
-        }
-
-        $property = $reflection->getProperty('pageRow');
-        $property->setAccessible(true);
-        $pageRow = $property->getValue($widget);
-        $type = isset($widget->parameter->type) ? (string) $widget->parameter->type : 'index';
-
-        if (strpos($type, '_page') === false) {
-            $type .= '_page';
-        }
-
-        $indexBase = isset($widget->options->index) ? (string) $widget->options->index : '';
-        return \Typecho\Router::url($type, $pageRow, $indexBase);
-    } catch (Throwable $exception) {
-        return null;
-    }
-}
-
-function timellow_page_url($widget, $page)
-{
-    $page = (int) $page;
-    if ($page <= 1 && method_exists($widget, 'getArchiveUrl')) {
-        $firstUrl = $widget->getArchiveUrl();
-        if (!empty($firstUrl)) {
-            return $firstUrl;
-        }
-    }
-
-    $template = timellow_get_page_template($widget);
-    if (!$template) {
-        return null;
-    }
-
-    return str_replace(['{page}', '%7Bpage%7D'], (string) $page, $template);
-}
-
 function timellow_article_list_paging_mode()
 {
     $mode = trim((string) timellow_option('articleListPagingMode', 'pagination'));
@@ -1809,10 +1767,42 @@ function timellow_pagination_state($widget)
         'total' => $total,
         'pageSize' => $pageSize,
         'totalPages' => $totalPages,
-        'current' => $current,
-        'prevUrl' => $current > 1 ? timellow_page_url($widget, $current - 1) : null,
-        'nextUrl' => $current < $totalPages ? timellow_page_url($widget, $current + 1) : null
+        'current' => $current
     ];
+}
+
+function timellow_native_page_link($widget, $word, $page)
+{
+    if (!method_exists($widget, 'pageLink')) {
+        return '';
+    }
+
+    return timellow_capture(function () use ($widget, $word, $page) {
+        $widget->pageLink($word, $page);
+    });
+}
+
+function timellow_page_link_href($html)
+{
+    if (preg_match('/\shref=(["\'])(.*?)\1/i', (string) $html, $matches)) {
+        return html_entity_decode($matches[2], ENT_QUOTES, 'UTF-8');
+    }
+
+    return '';
+}
+
+function timellow_page_link_with_class($html, $class)
+{
+    $html = trim((string) $html);
+    if ($html === '') {
+        return '';
+    }
+
+    if (preg_match('/<a\b[^>]*\bclass=(["\'])(.*?)\1/i', $html)) {
+        return preg_replace('/(<a\b[^>]*\bclass=(["\']))(.*?)(\2)/i', '$1$3 ' . $class . '$4', $html, 1);
+    }
+
+    return preg_replace('/<a\b/i', '<a class="' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '"', $html, 1);
 }
 
 function timellow_render_pagination($widget)
@@ -1825,8 +1815,9 @@ function timellow_render_pagination($widget)
     }
 
     $current = (int) $state['current'];
-    $prevUrl = $state['prevUrl'];
-    $nextUrl = $state['nextUrl'];
+    $prevLink = $current > 1 ? timellow_native_page_link($widget, _t('上一页'), 'prev') : '';
+    $nextLink = $current < $totalPages ? timellow_native_page_link($widget, _t('下一页'), 'next') : '';
+    $nextUrl = timellow_page_link_href($nextLink);
 
     if (timellow_article_list_paging_mode() === 'loadmore') {
         if (empty($nextUrl)) {
@@ -1843,12 +1834,12 @@ function timellow_render_pagination($widget)
     }
 
     echo '<nav class="pagination" aria-label="' . htmlspecialchars(_t('分页导航'), ENT_QUOTES, 'UTF-8') . '">';
-    echo $prevUrl
-        ? '<a class="page-link" href="' . htmlspecialchars($prevUrl, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(_t('上一页'), ENT_QUOTES, 'UTF-8') . '</a>'
+    echo $prevLink
+        ? timellow_page_link_with_class($prevLink, 'page-link')
         : '<span class="page-link is-disabled">' . htmlspecialchars(_t('上一页'), ENT_QUOTES, 'UTF-8') . '</span>';
     echo '<span class="page-status">' . sprintf(_t('第 %1$d / %2$d 页'), $current, $totalPages) . '</span>';
-    echo $nextUrl
-        ? '<a class="page-link" href="' . htmlspecialchars($nextUrl, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(_t('下一页'), ENT_QUOTES, 'UTF-8') . '</a>'
+    echo $nextLink
+        ? timellow_page_link_with_class($nextLink, 'page-link')
         : '<span class="page-link is-disabled">' . htmlspecialchars(_t('下一页'), ENT_QUOTES, 'UTF-8') . '</span>';
     echo '</nav>';
 }
