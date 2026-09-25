@@ -30,6 +30,10 @@
             document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
+    <?php $timellowFontPreloadUrl = timellow_article_font_preload_url(); ?>
+    <?php if ($timellowFontPreloadUrl !== ''): ?>
+        <link rel="preload" href="<?php echo timellow_escape($timellowFontPreloadUrl); ?>" as="font" crossorigin>
+    <?php endif; ?>
     <link rel="stylesheet" href="<?php echo timellow_escape(timellow_asset_url('style.css')); ?>">
     <style>
 <?php echo timellow_article_font_style_block(); ?>

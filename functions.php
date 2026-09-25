@@ -223,11 +223,12 @@ function themeConfig($form)
         [
             'default' => _t('默认字体'),
             'lxgw' => _t('霞鹜文楷（内置）'),
+            'fangyuan' => _t('阿里妈妈方圆体（内置）'),
             'custom' => _t('自定义字体')
         ],
         'default',
         _t('全站字体'),
-        _t('选择“默认字体”时不加载或指定主题字体；选择“霞鹜文楷”后使用主题内置字体。切换到自定义后，可继续填写字体名称和字体文件 URL，前台全局生效。')
+        _t('选择“默认字体”时不加载或指定主题字体；选择内置字体后全站生效。切换到自定义后，可继续填写字体名称和字体文件 URL。')
     );
     $form->addInput($articleFontMode);
 
@@ -1125,18 +1126,42 @@ function timellow_article_font_stack()
         return '"Timellow LXGW", "LXGW WenKai", ' . $fallback;
     }
 
+    if ($mode === 'fangyuan') {
+        return '"Timellow FangYuan", ' . $fallback;
+    }
+
     return '';
 }
 
 function timellow_article_font_mode()
 {
     $mode = trim((string) timellow_option('articleFontMode', 'default'));
-    return in_array($mode, ['default', 'lxgw', 'custom'], true) ? $mode : 'default';
+    return in_array($mode, ['default', 'lxgw', 'fangyuan', 'custom'], true) ? $mode : 'default';
+}
+
+function timellow_article_font_preload_url()
+{
+    $mode = timellow_article_font_mode();
+
+    if ($mode === 'lxgw') {
+        return timellow_asset_url('assets/fonts/lxgw.woff2');
+    }
+
+    if ($mode === 'fangyuan') {
+        return timellow_asset_url('assets/fonts/alimama-fangyuan.woff2');
+    }
+
+    if ($mode === 'custom') {
+        $url = trim((string) timellow_option('customArticleFontUrl', ''));
+        return filter_var($url, FILTER_VALIDATE_URL) ? $url : '';
+    }
+
+    return '';
 }
 
 function timellow_lxgw_article_font_face()
 {
-    $fontUrl = timellow_asset_url('assets/fonts/lxgw.woff2');
+    $fontUrl = timellow_article_font_preload_url();
     if ($fontUrl === '') {
         return '';
     }
@@ -1146,7 +1171,23 @@ function timellow_lxgw_article_font_face()
         . '  src: url("' . addcslashes($fontUrl, "\"\\") . '") format("woff2");' . "\n"
         . '  font-style: normal;' . "\n"
         . '  font-weight: 400;' . "\n"
-        . '  font-display: swap;' . "\n"
+        . '  font-display: optional;' . "\n"
+        . '}';
+}
+
+function timellow_fangyuan_article_font_face()
+{
+    $fontUrl = timellow_article_font_preload_url();
+    if ($fontUrl === '') {
+        return '';
+    }
+
+    return '@font-face {' . "\n"
+        . '  font-family: "Timellow FangYuan";' . "\n"
+        . '  src: url("' . addcslashes($fontUrl, "\"\\") . '") format("woff2");' . "\n"
+        . '  font-style: normal;' . "\n"
+        . '  font-weight: 100 700;' . "\n"
+        . '  font-display: optional;' . "\n"
         . '}';
 }
 
@@ -1157,8 +1198,8 @@ function timellow_custom_article_font_face()
         return '';
     }
 
-    $fontUrl = trim((string) timellow_option('customArticleFontUrl', ''));
-    if ($fontUrl === '' || !filter_var($fontUrl, FILTER_VALIDATE_URL)) {
+    $fontUrl = timellow_article_font_preload_url();
+    if ($fontUrl === '') {
         return '';
     }
 
@@ -1182,7 +1223,7 @@ function timellow_custom_article_font_face()
         . '  src: url("' . addcslashes($fontUrl, "\"\\") . '") format("' . $format . '");' . "\n"
         . '  font-style: normal;' . "\n"
         . '  font-weight: 400;' . "\n"
-        . '  font-display: swap;' . "\n"
+        . '  font-display: optional;' . "\n"
         . '}';
 }
 
@@ -1190,7 +1231,13 @@ function timellow_article_font_style_block()
 {
     $rules = [];
     $mode = timellow_article_font_mode();
-    $fontFace = $mode === 'lxgw' ? timellow_lxgw_article_font_face() : timellow_custom_article_font_face();
+    if ($mode === 'lxgw') {
+        $fontFace = timellow_lxgw_article_font_face();
+    } elseif ($mode === 'fangyuan') {
+        $fontFace = timellow_fangyuan_article_font_face();
+    } else {
+        $fontFace = timellow_custom_article_font_face();
+    }
 
     if ($fontFace !== '') {
         $rules[] = $fontFace;
