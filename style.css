@@ -1890,6 +1890,14 @@ button {
   gap: 2px;
 }
 
+.comment-author-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
 .comment-author {
   font-weight: 600;
   font-size: 14px;
@@ -1897,6 +1905,51 @@ button {
 
 .comment-author a:hover {
   color: var(--accent);
+}
+
+.comment-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.comment-badge-level {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+
+.comment-badge-owner {
+  border-color: rgba(180, 79, 60, 0.28);
+  background: rgba(180, 79, 60, 0.1);
+  color: #a74635;
+}
+
+.comment-badge-friend {
+  border-color: rgba(40, 117, 138, 0.3);
+  background: rgba(40, 117, 138, 0.1);
+  color: #28758a;
+}
+
+html[data-theme="dark"] .comment-badge-owner {
+  border-color: rgba(255, 154, 130, 0.34);
+  background: rgba(255, 154, 130, 0.12);
+  color: #ff9a82;
+}
+
+html[data-theme="dark"] .comment-badge-friend {
+  border-color: rgba(102, 194, 214, 0.34);
+  background: rgba(102, 194, 214, 0.12);
+  color: #75c8da;
 }
 
 .comment-date {

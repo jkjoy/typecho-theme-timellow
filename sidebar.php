@@ -8,7 +8,9 @@
         $profileBio = trim((string) timellow_option('sidebarProfileBio', ''));
         $profileBio = $profileBio !== '' ? $profileBio : timellow_site_subtitle();
         $profileAvatar = trim((string) timellow_option('sidebarProfileAvatar', ''));
-        $profileLinks = timellow_sns_links();
+        $profileLinks = array_values(array_filter(timellow_sns_links(), function ($link) {
+            return !in_array($link['type'], ['rss', 'sitemap'], true);
+        }));
         ?>
         <section class="sidebar-widget sidebar-profile-widget">
             <div class="sidebar-profile">

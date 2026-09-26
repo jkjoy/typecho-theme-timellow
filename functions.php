@@ -2064,12 +2064,178 @@ function timellow_sidebar_post_item($posts)
     ];
 }
 
-function timellow_comment_is_author($comments)
+function timellow_normalize_comment_email($email)
+{
+    return strtolower(trim((string) $email));
+}
+
+function timellow_comment_administrator_ids()
+{
+    static $administratorIds = null;
+
+    if ($administratorIds !== null) {
+        return $administratorIds;
+    }
+
+    $administratorIds = [];
+
+    try {
+        $db = \Typecho\Db::get();
+        $rows = $db->fetchAll(
+            $db->select('uid')
+                ->from('table.users')
+                ->where('group = ?', 'administrator')
+        );
+
+        foreach ($rows as $row) {
+            $uid = (int) ($row['uid'] ?? 0);
+            if ($uid > 0) {
+                $administratorIds[$uid] = true;
+            }
+        }
+    } catch (Throwable $exception) {
+        return [];
+    }
+
+    return $administratorIds;
+}
+
+function timellow_comment_is_administrator($comments)
 {
     $authorId = isset($comments->authorId) ? (int) $comments->authorId : 0;
-    $ownerId = isset($comments->ownerId) ? (int) $comments->ownerId : 0;
+    if ($authorId <= 0) {
+        return false;
+    }
 
-    return $authorId > 0 && $ownerId > 0 && $authorId === $ownerId;
+    $administratorIds = timellow_comment_administrator_ids();
+    return isset($administratorIds[$authorId]);
+}
+
+function timellow_comment_friend_emails()
+{
+    static $friendEmails = null;
+
+    if ($friendEmails !== null) {
+        return $friendEmails;
+    }
+
+    $friendEmails = [];
+
+    try {
+        $db = \Typecho\Db::get();
+        $rows = $db->fetchAll(
+            $db->select('email')
+                ->from('table.links')
+                ->where('state = ?', 1)
+        );
+
+        foreach ($rows as $row) {
+            $email = timellow_normalize_comment_email($row['email'] ?? '');
+            if ($email !== '') {
+                $friendEmails[$email] = true;
+            }
+        }
+    } catch (Throwable $exception) {
+        return [];
+    }
+
+    return $friendEmails;
+}
+
+function timellow_comment_email_counts()
+{
+    static $emailCounts = null;
+
+    if ($emailCounts !== null) {
+        return $emailCounts;
+    }
+
+    $emailCounts = [];
+
+    try {
+        $db = \Typecho\Db::get();
+        $rows = $db->fetchAll(
+            $db->select(
+                ['LOWER(TRIM(mail))' => 'normalized_mail'],
+                ['COUNT(coid)' => 'total']
+            )
+                ->from('table.comments')
+                ->where('status = ?', 'approved')
+                ->where('type = ?', 'comment')
+                ->group('LOWER(TRIM(mail))')
+        );
+
+        foreach ($rows as $row) {
+            $email = timellow_normalize_comment_email($row['normalized_mail'] ?? '');
+            if ($email !== '') {
+                $emailCounts[$email] = (int) ($row['total'] ?? 0);
+            }
+        }
+    } catch (Throwable $exception) {
+        return [];
+    }
+
+    return $emailCounts;
+}
+
+function timellow_comment_level($commentCount)
+{
+    $commentCount = max(0, (int) $commentCount);
+
+    if ($commentCount >= 160) {
+        return 6;
+    }
+    if ($commentCount >= 80) {
+        return 5;
+    }
+    if ($commentCount >= 40) {
+        return 4;
+    }
+    if ($commentCount >= 20) {
+        return 3;
+    }
+    if ($commentCount >= 10) {
+        return 2;
+    }
+
+    return 1;
+}
+
+function timellow_comment_badge($comments)
+{
+    if (timellow_comment_is_administrator($comments)) {
+        return [
+            'type' => 'owner',
+            'label' => _t('博主'),
+            'title' => _t('本站博主')
+        ];
+    }
+
+    $email = timellow_normalize_comment_email($comments->mail ?? '');
+    if ($email === '') {
+        return null;
+    }
+
+    $friendEmails = timellow_comment_friend_emails();
+    if (isset($friendEmails[$email])) {
+        return [
+            'type' => 'friend',
+            'label' => _t('好友'),
+            'title' => _t('友情链接认证')
+        ];
+    }
+
+    $emailCounts = timellow_comment_email_counts();
+    $commentCount = (int) ($emailCounts[$email] ?? 0);
+    if ($commentCount <= 0) {
+        return null;
+    }
+
+    return [
+        'type' => 'level',
+        'label' => 'Lv.' . timellow_comment_level($commentCount),
+        'title' => sprintf(_t('已发布 %d 条评论'), $commentCount)
+    ];
 }
 
 function timellow_sidebar_recent_posts($limit = null)
@@ -2762,10 +2928,11 @@ function timellow_comment_content_with_reply($comments)
 function threadedComments($comments, $options)
 {
     $commentClass = 'comment-item';
+    $commentBadge = timellow_comment_badge($comments);
     if ($comments->levels > 0) {
         $commentClass .= ' is-children';
     }
-    if (timellow_comment_is_author($comments)) {
+    if ($commentBadge !== null && $commentBadge['type'] === 'owner') {
         $commentClass .= ' is-author';
     }
     ?>
@@ -2778,13 +2945,20 @@ function threadedComments($comments, $options)
                 <div class="comment-main">
                     <div class="comment-header">
                         <div class="comment-meta-block">
-                            <span class="comment-author">
-                                <?php if ($comments->url): ?>
-                                    <a href="<?php echo htmlspecialchars((string) $comments->url, ENT_QUOTES, 'UTF-8'); ?>" rel="ugc external nofollow" target="_blank"><?php echo htmlspecialchars((string) $comments->author, ENT_QUOTES, 'UTF-8'); ?></a>
-                                <?php else: ?>
-                                    <?php echo htmlspecialchars((string) $comments->author, ENT_QUOTES, 'UTF-8'); ?>
+                            <div class="comment-author-line">
+                                <span class="comment-author">
+                                    <?php if ($comments->url): ?>
+                                        <a href="<?php echo htmlspecialchars((string) $comments->url, ENT_QUOTES, 'UTF-8'); ?>" rel="ugc external nofollow" target="_blank"><?php echo htmlspecialchars((string) $comments->author, ENT_QUOTES, 'UTF-8'); ?></a>
+                                    <?php else: ?>
+                                        <?php echo htmlspecialchars((string) $comments->author, ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php endif; ?>
+                                </span>
+                                <?php if ($commentBadge !== null): ?>
+                                    <span class="comment-badge comment-badge-<?php echo timellow_escape($commentBadge['type']); ?>" title="<?php echo timellow_escape($commentBadge['title']); ?>">
+                                        <?php echo timellow_escape($commentBadge['label']); ?>
+                                    </span>
                                 <?php endif; ?>
-                            </span>
+                            </div>
                             <time class="comment-date" datetime="<?php $comments->date('c'); ?>"><?php $comments->date('Y-m-d H:i'); ?></time>
                         </div>
                         <div class="comment-actions">
