@@ -1187,7 +1187,7 @@ function timellow_fangyuan_article_font_face()
         . '  src: url("' . addcslashes($fontUrl, "\"\\") . '") format("woff2");' . "\n"
         . '  font-style: normal;' . "\n"
         . '  font-weight: 100 700;' . "\n"
-        . '  font-display: optional;' . "\n"
+        . '  font-display: swap;' . "\n"
         . '}';
 }
 
